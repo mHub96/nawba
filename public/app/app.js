@@ -67,6 +67,7 @@
   }
   player.addEventListener('ended', () => setTimeout(playNext, 350));
   function stopVoice() { queue = []; player.pause(); }
+  player.volume = 1;
   function toggleVoice(btn) {
     voiceOn = !voiceOn; LS.set('voice', voiceOn);
     if (!voiceOn) stopVoice();
@@ -94,13 +95,33 @@
   // ---------------- routing ----------------
   function go(hash) { if (location.hash !== hash) location.hash = hash; else route(); }
   addEventListener('hashchange', route);
-  function render(html, { flow = false, after = false } = {}) {
+  function render(html, { flow = false, after = false, tab = null, title = '', back = '', backLabel = 'رجوع' } = {}) {
     document.body.classList.toggle('flow', flow);
     document.body.classList.toggle('after', after);
-    $app.innerHTML = `<section class="screen">${html}</section>`;
+    currentTab = flow ? null : tab;
+    drawFrame(currentTab);
+    const head = (back ? `<a class="back-link" href="${back}">${I.back}<span>${esc(backLabel)}</span></a>` : '') + (title ? `<h1 class="large-title">${esc(title)}</h1>` : '');
+    $app.innerHTML = `<section class="screen">${head}${html}</section>`;
     window.scrollTo(0, 0);
   }
-  $app.addEventListener('click', (e) => {
+  // ---------------- app frame: fixed info bar (top) + tab bar (bottom) ----------------
+  const TABS = [['#home', 'الرئيسية', 'home', 'homeF'], ['#profile', 'الملف', 'file', 'fileF'], ['#history', 'السجل', 'diary', 'diaryF'], ['#learn', 'تعلّم', 'book', 'bookF'], ['#more', 'المزيد', 'more', 'moreF']];
+  const $info = document.getElementById('infobar'), $tabs = document.getElementById('tabbar');
+  function drawFrame(tab) {
+    const show = !!(token && ME) && tab !== null;
+    $info.hidden = $tabs.hidden = !show;
+    document.body.classList.toggle('framed', show);
+    if (!show) return;
+    $info.innerHTML = `<span class="brand-mark">${I.logo}</span>
+      <span class="who"><b>${esc(ME.patient.name)}</b><small>${esc(ME.centerName?.ar || '')}</small></span>
+      <span class="net ${navigator.onLine ? 'on' : 'off'}" title="${navigator.onLine ? 'متصل' : 'بدون إنترنت'}">${navigator.onLine ? '' : I.wifiOff}<i></i>${navigator.onLine ? 'متصل' : 'بدون نت'}</span>
+      ${voiceBtn()}`;
+    $tabs.innerHTML = TABS.map(([h, label, ic, icF]) => `<a href="${h}" class="${tab === h ? 'on' : ''}" ${tab === h ? 'aria-current="page"' : ''}>${I[tab === h ? icF : ic]}<span>${label}</span></a>`).join('');
+  }
+  addEventListener('online', () => drawFrame(currentTab)); addEventListener('offline', () => drawFrame(currentTab));
+  let currentTab = null;
+
+  document.addEventListener('click', (e) => {
     const v = e.target.closest('[data-voice]'); if (v) { toggleVoice(v); return; }
     const s = e.target.closest('[data-say]'); if (s) { sayForce(s.dataset.say); return; }
     const g = e.target.closest('[data-go]'); if (g) { stopVoice(); go(g.dataset.go); }
@@ -110,13 +131,14 @@
     const h = location.hash || '#home';
     if (h.startsWith('#k=')) return qrLogin(h.slice(3));
     if (!token) return loginScreen();
-    if (!ME) { render(`<div class="step"><p>…جاري التحميل</p></div>`); await refreshMe(); if (!ME) return loginScreen('ما كدرنا نحمّل الملف. تأكد من الإنترنت.'); }
+    if (!ME) { render(`<div class="step"><p>…جاري التحميل</p></div>`); await refreshMe(); if (!ME) return loginScreen('ما گدرنا نحمّل الملف. تأكد من الإنترنت.'); }
     if (FLOW && !h.startsWith('#flow')) { /* leaving flow via back button */ endFlow(false); }
     if (h === '#home') return home();
     if (h === '#profile') return profile();
     if (h === '#learn') return learn();
     if (h.startsWith('#learn/')) return lesson(h.slice(7));
     if (h === '#history') return historyScreen();
+    if (h === '#more') return more();
     if (h === '#flow') return FLOW ? renderFlow() : startFlow();
     if (h === '#log') return startLog();
     home();
@@ -140,7 +162,7 @@
       <div style="margin:36px 0 26px">
         <span class="brand-mark" style="display:block;width:64px;height:64px;margin-bottom:16px">${I.logo}</span>
         <div class="wordmark" style="font-size:52px">نوبة</div>
-        <p style="margin:6px 0 0;color:var(--muted)">دليل العائلة وقت نوبة الصرع</p>
+        <p style="margin:6px 0 0;color:var(--muted)">دليل العائلة وگت نوبة الصرع</p>
       </div>
       <div class="card" style="display:flex;gap:14px;align-items:center;background:var(--lapis-soft);border-color:transparent">
         <span class="row" style="padding:0;min-height:0;width:auto"><span class="ic" style="background:var(--lapis);color:var(--lapis-ink)">${I.camera}</span></span>
@@ -153,7 +175,8 @@
         <label class="field"><span>الرمز السري</span><input name="password" type="password" autocomplete="current-password" inputmode="numeric" required></label>
         <button class="btn" type="submit">دخول</button>
       </form>
-      ${updateButton()}`);
+      ${updateButton()}
+      ${creditsBlock()}`);
     bindUpdate();
     document.getElementById('login').onsubmit = async (e) => {
       e.preventDefault();
@@ -172,40 +195,101 @@
     const p = ME.patient;
     const pending = LS.get('outbox', []).length;
     render(`
-      <div class="topbar">
-        <span class="brand-mark">${I.logo}</span>
-        <h1>${esc(p.name)}<small>${esc(ME.centerName?.ar || '')}</small></h1>
-        ${voiceBtn()}
-      </div>
       <button class="nawba-now" id="go-flow" aria-label="نوبة الآن، ابدأ الإرشاد">
         <span class="bolt">${I.bolt}</span>
-        <b>نوبة الآن</b><span>اضغط هنا وقت النوبة</span>
+        <b>نوبة الآن</b><span>اضغط هنا وگت النوبة</span>
       </button>
-      <p class="hint">التطبيق يحسب الوقت ويحجي وياك خطوة بخطوة.</p>
+      <p class="hint">التطبيق يحسب الوگت ويحجي وياك خطوة بخطوة.</p>
+      ${installCard()}
       <div class="list">
-        <button class="row" data-go="#profile"><span class="ic">${I.user}</span><span class="tx"><b>ملف المريض</b><small>النوبات والأدوية وخطة الإسعاف</small></span><span class="go">${I.next}</span></button>
-        <button class="row" data-go="#log"><span class="ic">${I.plus}</span><span class="tx"><b>سجّل نوبة صارت</b><small>نوبة خلصت قبل شوية</small></span><span class="go">${I.next}</span></button>
-        <button class="row" data-go="#history"><span class="ic">${I.list}</span><span class="tx"><b>سجل النوبات</b><small>${pending ? `<span class="badge">${arNum(pending)} تنتظر الإنترنت</span>` : 'كل النوبات المسجلة'}</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#profile"><span class="ic">${I.file}</span><span class="tx"><b>ملف المريض</b><small>النوبات والأدوية وخطة الإسعاف</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#log"><span class="ic">${I.plus}</span><span class="tx"><b>سجّل نوبة صارت</b><small>نوبة خلصت گبل شويّة</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#history"><span class="ic">${I.diary}</span><span class="tx"><b>سجل النوبات</b><small>${pending ? `<span class="badge">${arNum(pending)} تنتظر الإنترنت</span>` : 'كل النوبات المسجلة'}</small></span><span class="go">${I.next}</span></button>
         <button class="row" data-go="#learn"><span class="ic">${I.book}</span><span class="tx"><b>تعلّم</b><small>${arNum(ME.edu.length)} دروس مفتوحة</small></span><span class="go">${I.next}</span></button>
         ${ME.features.ambulance ? `<a class="row" href="tel:${esc(ME.features.emergencyNumber)}"><span class="ic alarm">${I.phone}</span><span class="tx"><b>اتصل بالإسعاف</b><small class="num">${arNum(ME.features.emergencyNumber)}</small></span></a>` : ''}
       </div>
-      <div class="spacer" style="min-height:14px"></div>
-      <div class="list">
-        <button class="row" id="theme-pick"><span class="ic">${I.sun}</span><span class="tx"><b>مظهر التطبيق</b><small>${esc(NawbaTheme.LABELS[NawbaTheme.get()].ar)}</small></span><span class="go">${I.next}</span></button>
-        ${updateButton(true)}
-        <button class="row" id="logout"><span class="ic" style="background:var(--sunk);color:var(--muted)">${I.logout}</span><span class="tx"><b style="font-weight:500">خروج من الحساب</b></span></button>
-      </div>
-      <p class="version">الإصدار <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>
-    `);
-    bindUpdate();
-    document.getElementById('theme-pick').onclick = themeSheet;
+    `, { tab: '#home' });
+    bindInstall();
     document.getElementById('go-flow').onclick = () => go('#flow');
+  }
+
+  // ---------------- more ----------------
+  function more() {
+    render(`
+      <p class="section-title">الإعدادات</p>
+      <div class="list">
+        <button class="row" id="theme-pick"><span class="ic">${I.appearance}</span><span class="tx"><b>مظهر التطبيق</b><small>${esc(NawbaTheme.LABELS[NawbaTheme.get()].ar)}</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-voice-row><span class="ic">${voiceOn ? I.speaker : I.mute}</span><span class="tx"><b>صوت الإرشاد</b><small>${voiceOn ? 'شغّال' : 'مطفي'}</small></span><span class="switch ${voiceOn ? 'on' : ''}" aria-hidden="true"><i></i></span></button>
+        ${installRow()}
+        ${updateButton(true)}
+      </div>
+      <p class="section-title">الحساب</p>
+      <div class="list">
+        <button class="row" id="logout"><span class="ic danger">${I.logout}</span><span class="tx"><b>خروج من الحساب</b><small>تحتاج رمز QR أو الرمز السري حتى ترجع</small></span></button>
+      </div>
+      ${creditsBlock()}
+    `, { tab: '#more', title: 'المزيد' });
+    bindUpdate(); bindInstall();
+    document.getElementById('theme-pick').onclick = themeSheet;
+    document.querySelector('[data-voice-row]').onclick = () => { toggleVoice(); more(); };
     document.getElementById('logout').onclick = () => { if (confirm('متأكد تريد تطلع؟ راح تحتاج رمز QR أو الرمز السري حتى ترجع.')) logout(); };
+  }
+
+  // ---------------- credits (editable by the Owner in the staff panel) ----------------
+  const DEFAULT_CREDITS = { supervisor: { ar: 'د. أطياف' }, developer: { ar: 'د. محمد رياض' } };
+  function creditsBlock() {
+    const c = (ME && ME.credits) || LS.get('pub', {}).credits || DEFAULT_CREDITS;
+    return `<footer class="credits">
+      <span class="brand-mark">${I.logo}</span>
+      <p><b>نوبة</b> <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>
+      <p>الإشراف: ${esc(c.supervisor?.ar || '')}</p>
+      <p>تطوير التطبيق: ${esc(c.developer?.ar || '')}</p>
+      <p class="copy">© ${arNum(new Date().getFullYear())} جميع الحقوق محفوظة</p>
+    </footer>`;
+  }
+
+  // ---------------- install (Android/desktop prompt, iPhone instructions) ----------------
+  let installEvt = null;
+  addEventListener('beforeinstallprompt', (e) => { e.preventDefault(); installEvt = e; if (currentTab === '#home' || currentTab === '#more') route(); });
+  addEventListener('appinstalled', () => { installEvt = null; LS.set('installed', true); toast('انضاف التطبيق للشاشة الرئيسية ✓'); route(); });
+  const isStandalone = () => matchMedia('(display-mode: standalone)').matches || navigator.standalone === true;
+  const isIOS = () => /iphone|ipad|ipod/i.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+  const canInstall = () => !isStandalone() && (installEvt || isIOS() || true);
+  function installCard() {
+    if (!canInstall() || LS.get('installHide', false)) return '';
+    return `<div class="install-card"><span class="app-icon">${I.logo}</span>
+      <span class="tx"><b>ثبّت نوبة على موبايلك</b><small>يفتح بلمسة وحدة، ويشتغل بدون إنترنت</small></span>
+      <button class="pill-btn" data-install>تثبيت</button><button class="x" data-install-hide aria-label="إخفاء">${I.close}</button></div>`;
+  }
+  function installRow() {
+    if (!canInstall()) return '';
+    return `<button class="row" data-install><span class="ic">${I.install}</span><span class="tx"><b>تثبيت التطبيق</b><small>إضافة نوبة للشاشة الرئيسية</small></span><span class="go">${I.next}</span></button>`;
+  }
+  function bindInstall() {
+    document.querySelectorAll('[data-install]').forEach(b => b.onclick = doInstall);
+    const h = document.querySelector('[data-install-hide]'); if (h) h.onclick = () => { LS.set('installHide', true); route(); };
+  }
+  async function doInstall() {
+    if (installEvt) { installEvt.prompt(); const r = await installEvt.userChoice.catch(() => ({})); installEvt = null; if (r && r.outcome === 'accepted') toast('دنثبّت التطبيق…'); return; }
+    const el = document.createElement('div'); el.className = 'sheet-bg';
+    const close = () => el.parentNode && el.parentNode.removeChild(el);
+    el.innerHTML = isIOS()
+      ? `<div class="sheet" role="dialog" aria-label="تثبيت التطبيق"><h3>ثبّت نوبة على الآيفون</h3><ol class="steps">
+          <li><span class="ic">${I.share}</span><span>اضغط زر <b>المشاركة</b> بشريط سفاري</span></li>
+          <li><span class="ic">${I.addSquare}</span><span>اختار <b>«إضافة إلى الشاشة الرئيسية»</b></span></li>
+          <li><span class="ic">${I.check}</span><span>اضغط <b>«إضافة»</b> فوگ، وراح تلگه بين تطبيقاتك</span></li></ol>
+          <button class="btn" data-close>تمام</button></div>`
+      : `<div class="sheet" role="dialog" aria-label="تثبيت التطبيق"><h3>ثبّت نوبة</h3><ol class="steps">
+          <li><span class="ic">${I.more}</span><span>افتح <b>قائمة المتصفح</b> (النقاط الثلاث)</span></li>
+          <li><span class="ic">${I.install}</span><span>اختار <b>«تثبيت التطبيق»</b> أو <b>«إضافة إلى الشاشة الرئيسية»</b></span></li></ol>
+          <button class="btn" data-close>تمام</button></div>`;
+    el.onclick = (e) => { if (e.target === el || e.target.closest('[data-close]')) close(); };
+    document.body.appendChild(el);
   }
 
   // ---------------- appearance (day / midday / evening / night) ----------------
   const THEME_ICON = { auto: 'clock', day: 'sun', midday: 'sun', evening: 'moon', night: 'moon' };
-  const THEME_HINT = { auto: 'يتغيّر وحده: نهار، ظهيرة، مساء، ليل', day: 'فاتح وهادئ', midday: 'أوضح شي تحت الشمس القوية', evening: 'خافت ومريح للعين', night: 'أغمق شي، ما يزعج بالظلام' };
+  const THEME_HINT = { auto: 'يتغيّر وحده: نهار، ظهيرة، مساء، ليل', day: 'فاتح وهادئ', midday: 'أوضح شي تحت الشمس الگوية', evening: 'خافت ومريح للعين', night: 'أغمق شي، ما يزعج بالظلام' };
   function themeSheet() {
     const el = document.createElement('div');
     el.className = 'sheet-bg';
@@ -236,10 +320,10 @@
   }
   function bindUpdate() { const b = document.getElementById('check-update'); if (b) b.onclick = () => checkUpdate(b); }
   async function checkUpdate(btn) {
-    if (!navigator.onLine) return toast('ما اكو إنترنت هسه. جرّب لمن يرجع الإنترنت.');
+    if (!navigator.onLine) return toast('ما اكو إنترنت هسّه. جرّب لمن يرجع الإنترنت.');
     btn.disabled = true; const lbl = btn.querySelector('b') || btn; lbl.textContent = 'دنفحص…';
     let latest;
-    try { latest = await latestVersion(); } catch { route(); return toast('ما كدرنا نفحص. جرّب بعد شوية.'); }
+    try { latest = await latestVersion(); } catch { route(); return toast('ما گدرنا نفحص. جرّب بعد شويّة.'); }
     if (latest === CUR_VERSION) { updateAvailable = false; route(); return toast('عندك آخر نسخة ✓'); }
     toast('…دنحدّث التطبيق');
     try {
@@ -275,7 +359,6 @@
         ${s.type ? sayBtn('item_' + s.type.id) : ''}
       </div>`).join('');
     render(`
-      <div class="topbar"><button class="icon-btn" data-go="#home" aria-label="رجوع">${I.back}</button><h1>ملف المريض</h1>${voiceBtn()}</div>
       <div class="card"><h3>${esc(p.name)}</h3><p class="label num" dir="ltr" style="text-align:end">${esc(p.code)}</p>
         ${p.doctor ? `<p>الطبيب المعالج: ${esc(p.doctor)}</p>` : ''}${sayBtn('home_profile', 'شنو هالصفحة؟')}</div>
       ${p.familyNote ? `<div class="card" style="border-color:var(--lapis)"><span class="label">ملاحظة من الدكتور</span><p>${esc(p.familyNote)}</p></div>` : ''}
@@ -284,32 +367,30 @@
       ${sz ? `<p class="section-title">النوبات اللي تصير عنده</p>${sz}` : ''}
       ${p.meds.length ? `<p class="section-title">الأدوية اليومية</p><div class="card">${p.meds.map(m => `<p>${I.pill.replace('<svg', '<svg style="width:20px;height:20px;vertical-align:-4px;color:var(--lapis)"')} <b>${esc(m.name)}</b> ${esc(m.dose || '')} <span class="label">${esc(m.schedule || '')}</span></p>`).join('')}</div>` : ''}
       ${p.contacts.length ? `<p class="section-title">أرقام مهمة</p>${p.contacts.map(c => `<a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="tel:${esc(c.phone)}"><span class="mi" style="color:var(--lapis)">${I.phone}</span><span style="flex:1"><b>${esc(c.name)}</b><br><span class="label">${esc(c.relation || '')}</span></span><span class="num" dir="ltr">${esc(c.phone)}</span></a>`).join('')}` : ''}
-    `);
+    `, { tab: '#profile', title: 'ملف المريض' });
   }
 
   // ---------------- learn ----------------
   function learn() {
     render(`
-      <div class="topbar"><button class="icon-btn" data-go="#home" aria-label="رجوع">${I.back}</button><h1>تعلّم</h1>${voiceBtn()}</div>
       <div class="card" style="background:var(--lapis-soft);border:0"><p style="margin:0">كل ما تتعلم أكثر، الدكتور يفتح لك دروس جديدة.</p>${sayBtn('home_learn')}</div>
       <div class="list">${ME.edu.map(m => `<button class="row" data-go="#learn/${m.id}"><span class="ic">${I[m.icon] || I.book}</span><span class="tx"><b>${esc(m.ar)}</b><small>${arNum(m.paras.length)} فقرات، اسمعها أو اقراها</small></span><span class="go">${I.next}</span></button>`).join('')}</div>
-    `);
+    `, { tab: '#learn', title: 'تعلّم' });
   }
   function lesson(id) {
     const m = ME.edu.find(x => x.id === id);
     if (!m) return go('#learn');
     render(`
-      <div class="topbar"><button class="icon-btn" data-go="#learn" aria-label="رجوع">${I.back}</button><h1>${esc(m.ar)}</h1>${voiceBtn()}</div>
       ${m.image ? `<a href="../${esc(m.image)}" target="_blank" rel="noopener"><img class="guide-img" src="../${esc(m.image)}" alt="${esc(m.ar)}"></a>` : ''}
       <button class="btn" id="play-all" style="margin-bottom:14px">${I.speaker} اسمع الدرس كله</button>
       ${m.paras.map((p, i) => `<div class="card para"><p>${esc(p)}</p><button class="say icon-btn" data-say="edu_${m.id}_${i}" aria-label="اسمع">${I.speaker}</button></div>`).join('')}
-    `);
+    `, { tab: '#learn', title: m.ar, back: '#learn', backLabel: 'تعلّم' });
     document.getElementById('play-all').onclick = () => sayForce(`edu_${m.id}_t`, ...m.paras.map((_, i) => `edu_${m.id}_${i}`));
   }
 
   // ---------------- history ----------------
   async function historyScreen() {
-    render(`<div class="topbar"><button class="icon-btn" data-go="#home" aria-label="رجوع">${I.back}</button><h1>سجل النوبات</h1></div><div id="hist"><p class="label">…جاري التحميل</p></div>`);
+    render(`<div class="list" style="margin-bottom:16px"><button class="row" data-go="#log"><span class="ic">${I.plus}</span><span class="tx"><b>سجّل نوبة صارت</b><small>نوبة خلصت گبل شويّة</small></span><span class="go">${I.next}</span></button></div><div id="hist"><p class="label">…جاري التحميل</p></div>`, { tab: '#history', title: 'سجل النوبات' });
     const pending = LS.get('outbox', []);
     let list = [];
     try { list = await api('/api/me/events'); LS.set('events', list); } catch { list = LS.get('events', []); }
@@ -321,11 +402,11 @@
   // ================= CRISIS FLOW =================
   const STEPS = {
     c_calm: ['اهدأ وخذ نفَس', 'p_calm'], c_space: ['احمي راسه', 'p_space'], c_clothes: ['فك الملابس الضيقة', 'p_clothes'],
-    c_side: ['على جنبه إذا تكدر', 'p_side'], c_donts: ['لا تخلي شي بحلكه', 'p_donts'], c_watch: ['ابقى يمّه وراقب', 'p_watch'],
+    c_side: ['على جنبه إذا تگدر', 'p_side'], c_donts: ['لا تخلي شي بحلگه', 'p_donts'], c_watch: ['ابقى يمّه وراقب', 'p_watch'],
     n_calm: ['ابقى يمّه', 'p_hold'], n_guide: ['بعّده عن الخطر', 'p_guide'], n_talk: ['احجي وياه بهدوء', 'p_talk'],
     rec1: ['حط إيده بزاوية', 'p_rec1'], rec2: ['اطوي ركبته البعيدة', 'p_rec2'], rec3: ['دحرجه على جنبه', 'p_rec3'],
     rec4: ['افتح طريق النفَس', 'p_rec4'], breathe: ['تأكد من نفَسه', 'p_breathe'], stay: ['ابقى وياه لحد ما يصحى', 'p_stay'],
-    no_food: ['لا أكل ولا مي هسه', 'p_nofood']
+    no_food: ['لا أكل ولا مي هسّه', 'p_nofood']
   };
   const ICTAL = { convulsive: ['c_calm', 'c_space', 'c_clothes', 'c_side', 'c_donts', 'c_watch'], nonconvulsive: ['n_calm', 'n_guide', 'n_talk'] };
   const POST = { convulsive: ['rec1', 'rec2', 'rec3', 'rec4', 'breathe', 'stay', 'no_food'], nonconvulsive: ['stay', 'no_food'] };
@@ -366,7 +447,7 @@
     return `<div class="flow-head">
       ${timer && FLOW.mode === 'live' ? `<div class="timer ${cls}" id="timer">
         <svg class="ring" viewBox="0 0 64 64"><circle class="track" cx="32" cy="32" r="28"/><circle class="prog" id="ring" cx="32" cy="32" r="28" stroke-dasharray="${C}" stroke-dashoffset="${C * (1 - frac)}"/></svg>
-        <div class="timer-text"><b class="num" id="clock" dir="ltr">${mmss(s)}</b><small>${FLOW.stoppedAt ? 'مدة النوبة' : 'مدة النوبة لحد هسه'}</small></div></div>` : '<div class="spacer"></div>'}
+        <div class="timer-text"><b class="num" id="clock" dir="ltr">${mmss(s)}</b><small>${FLOW.stoppedAt ? 'مدة النوبة' : 'مدة النوبة لحد هسّه'}</small></div></div>` : '<div class="spacer"></div>'}
       ${voiceBtn()}
       <button class="icon-btn" id="exit" aria-label="إنهاء">${I.close}</button>
     </div>`;
@@ -384,7 +465,7 @@
     if (x) x.onclick = () => {
       if (FLOW.phase === 'diary' || FLOW.phase === 'triage' || FLOW.phase === 'post' || FLOW.phase === 'logmeta') {
         if (!confirm('تريد تطلع بدون ما تسجل النوبة؟')) return;
-      } else if (FLOW.mode === 'live' && !confirm('النوبة بعدها مستمرة؟ إذا وكفت اضغط "وكفت النوبة". تريد تطلع؟')) return;
+      } else if (FLOW.mode === 'live' && !confirm('النوبة بعدها مستمرة؟ إذا وگفت اضغط "وگفت النوبة". تريد تطلع؟')) return;
       endFlow(); go('#home');
     };
   }
@@ -406,9 +487,9 @@
   function flowChoose() {
     render(`${flowHead()}
       <div class="step">
-        <h2>شنو دتشوف هسه؟</h2><p style="margin-bottom:18px">اختار الصورة اللي تشبه حالته</p>
+        <h2>شنو دتشوف هسّه؟</h2><p style="margin-bottom:18px">اختار الصورة اللي تشبه حالته</p>
         <div class="choices">
-          <button class="choice" data-kind="convulsive">${I.p_convulsive}<span><b>جسمه يرجف أو متخشّب</b><small>وكع، تشنج، رجفة</small></span></button>
+          <button class="choice" data-kind="convulsive">${I.p_convulsive}<span><b>جسمه يرجف أو متخشّب</b><small>وگع، تشنج، رجفة</small></span></button>
           <button class="choice" data-kind="nonconvulsive">${I.p_nonconvulsive}<span><b>سرحان أو يتصرف غريب</b><small>ما يرد عليك، يمضغ، يمشي بلا هدف</small></span></button>
         </div>
         ${sayBtn('choose_type', 'اسمع مرة ثانية')}
@@ -437,7 +518,7 @@
           ${f.video ? `<label class="btn outline-light" style="cursor:pointer">${I.camera} صوّر النوبة<input type="file" accept="video/*" capture="environment" id="vid" hidden></label>` : ''}
           ${f.ambulance ? `<a class="btn outline-light" style="text-decoration:none" href="tel:${esc(f.emergencyNumber)}">${I.phone} ${arNum(f.emergencyNumber)}</a>` : ''}</div>` : ''}
         ${ictal ? `<div class="btn-row">${FLOW.i > 0 ? `<button class="btn outline-light" id="prev" style="flex:.45">${I.back}</button>` : ''}${!last ? `<button class="btn outline-light" id="next">التالي ${I.next}</button>` : ''}</div>
-          <button class="btn stopped" id="stopped">${I.check} وكفت النوبة</button>`
+          <button class="btn stopped" id="stopped">${I.check} وگفت النوبة</button>`
         : `<div class="btn-row">${FLOW.i > 0 ? `<button class="btn ghost" id="prev" style="flex:.45">${I.back}</button>` : ''}<button class="btn" id="next">${last ? 'خلصت، كمّل' : 'التالي'} ${I.next}</button></div>`}
       </div>`, { flow: true, after: !ictal });
     bindHead();
@@ -470,7 +551,7 @@
       ${rx ? `<div class="rx"><b>دوا الإسعاف:</b> ${esc(rx.drug)} <span dir="ltr">${esc(rx.dose)}</span><br>${esc(rx.route || '')}${rx.notes ? `<br><small>${esc(rx.notes)}</small>` : ''}</div>
         <button class="btn light" id="rx-given">${I.check} انطيته الدوا</button>` : ''}
       ${f.ambulance ? `<a class="btn light" style="text-decoration:none" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل بالإسعاف ${arNum(f.emergencyNumber)}</a>`
-        : `<p style="font-size:22px;font-weight:700">خذوه لأقرب طوارئ بأسرع وقت</p>`}
+        : `<p style="font-size:22px;font-weight:700">خذوه لأگرب طوارئ بأسرع وگت</p>`}
       <button class="btn outline-light" id="al-close" style="border-color:rgba(255,255,255,.6);color:#fff">رجوع للخطوات</button></div>`;
     document.body.appendChild(el);
     say(min === 5 ? 'alert_5min' : null, rx ? 'alert_rescue' : null, f.ambulance ? 'alert_call' : 'alert_er');
@@ -514,9 +595,9 @@
       <div class="step">
         <div class="verdict ${urgent ? 'urgent' : 'ok'}">
           <div style="width:96px;margin:0 auto">${urgent ? I.p_doctor : I.p_shield}</div>
-          <h2>${urgent ? 'لازم يشوفه طبيب هسه' : 'ماكو علامات خطر'}</h2>
-          <p>${urgent ? 'لا تتأخر. خلي واحد يبقى يمّه.' : 'خليه يرتاح، وكمّل دواه بوقته.'}</p>
-          ${urgent ? (f.ambulance ? `<a class="btn light" style="text-decoration:none;color:var(--crimson-deep);margin-top:10px" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل ${arNum(f.emergencyNumber)}</a>` : `<p style="font-weight:700;font-size:20px">خذوه لأقرب طوارئ</p>`) : ''}
+          <h2>${urgent ? 'لازم يشوفه طبيب هسّه' : 'ماكو علامات خطر'}</h2>
+          <p>${urgent ? 'لا تتأخر. خلي واحد يبقى يمّه.' : 'خليه يرتاح، وكمّل دواه بوگته.'}</p>
+          ${urgent ? (f.ambulance ? `<a class="btn light" style="text-decoration:none;color:var(--crimson-deep);margin-top:10px" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل ${arNum(f.emergencyNumber)}</a>` : `<p style="font-weight:700;font-size:20px">خذوه لأگرب طوارئ</p>`) : ''}
         </div>
       </div>
       <button class="btn" id="next">سجّل النوبة للدكتور ${I.next}</button>`, { flow: true, after: true });
@@ -532,10 +613,10 @@
     render(`${flowHead({ timer: false })}
       <div class="step" style="justify-content:flex-start;text-align:start;align-items:stretch">
         <h2>سجّل نوبة صارت</h2>
-        <label class="field"><span>وكت النوبة</span><input type="datetime-local" id="when" value="${d}" style="direction:ltr"></label>
-        <p class="label">كد طوّلت؟</p>
+        <label class="field"><span>وگت النوبة</span><input type="datetime-local" id="when" value="${d}" style="direction:ltr"></label>
+        <p class="label">شگد طوّلت؟</p>
         <div class="chips">${durs.map(([v, t]) => `<button class="chip ${FLOW.logDur === v ? 'on' : ''}" data-dur="${v}"><span class="tick">${I.check}</span><span class="txt">${t}</span></button>`).join('')}</div>
-        <p class="label" style="margin-top:14px">شلون كانت؟</p>
+        <p class="label" style="margin-top:14px">شلون چانت؟</p>
         <div class="chips">
           <button class="chip ${FLOW.kind === 'convulsive' ? 'on' : ''}" data-k="convulsive"><span class="tick">${I.check}</span><span class="txt">جسمه يرجف أو متخشّب</span></button>
           <button class="chip ${FLOW.kind === 'nonconvulsive' ? 'on' : ''}" data-k="nonconvulsive"><span class="tick">${I.check}</span><span class="txt">سرحان أو يتصرف غريب</span></button>
@@ -559,10 +640,10 @@
     if (FLOW.diaryIdx >= cats.length) { FLOW.phase = 'notes'; saveFlow(); return renderFlow(); }
     const cat = cats[FLOW.diaryIdx];
     const items = ME.items.filter(i => i.cat === cat).sort((a, b) => (b.typical - a.typical));
-    const titles = { aura: 'شنو صار قبل النوبة؟', ictal: 'شنو شفت أثناء النوبة؟', postictal: 'شنو صار بعد النوبة؟', trigger: 'تتوقع شنو سبّب النوبة؟' };
+    const titles = { aura: 'شنو صار گبل النوبة؟', ictal: 'شنو شفت أثناء النوبة؟', postictal: 'شنو صار بعد النوبة؟', trigger: 'تتوقع شنو سبّب النوبة؟' };
     render(`${flowHead({ timer: false })}
       <div class="dots">${cats.map((_, j) => `<i class="${j === FLOW.diaryIdx ? 'on' : ''}"></i>`).join('')}</div>
-      <div style="padding:4px 2px 12px"><h2 style="margin:0;font-size:24px">${titles[cat]}</h2><p class="label" style="margin:2px 0 0">اختار كل اللي شفته، وتكدر تختار أكثر من شي</p></div>
+      <div style="padding:4px 2px 12px"><h2 style="margin:0;font-size:24px">${titles[cat]}</h2><p class="label" style="margin:2px 0 0">اختار كل اللي شفته، وتگدر تختار أكثر من شي</p></div>
       <div class="chips">${items.map(i => `
         <div class="chip ${FLOW.selected.has(i.id) ? 'on' : ''}" data-id="${i.id}" role="checkbox" aria-checked="${FLOW.selected.has(i.id)}" tabindex="0">
           <span class="tick">${I.check}</span><span class="txt">${esc(i.lay)}${i.typical ? '<span class="usual">عادةً يصير</span>' : ''}</span>
@@ -641,6 +722,7 @@
   async function boot() {
     setOnline();
     try { NARR = await (await fetch('../content/narration.json')).json(); } catch {}
+    fetch(API + '/api/public').then(r => r.json()).then(d => LS.set('pub', d)).catch(() => {});
     try { AUDIO_V = (await (await fetch('../audio/index.json')).json()).hashes || {}; } catch {}
     if ('serviceWorker' in navigator) navigator.serviceWorker.register('sw.js', { scope: './' }).catch(() => {});
     if (token && navigator.onLine) refreshMe().then(() => { if (!FLOW && (location.hash === '#home' || !location.hash)) route(); });

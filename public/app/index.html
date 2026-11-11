@@ -8,16 +8,20 @@
   <meta name="theme-color" content="#1d3fa0">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-title" content="نوبة">
-  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="mobile-web-app-capable" content="yes">
   <link rel="manifest" href="manifest.webmanifest">
   <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
-  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+  <link rel="icon" type="image/png" sizes="64x64" href="icons/favicon-64.png">
   <script src="../shared/theme.js"></script>
   <link rel="stylesheet" href="app.css">
 </head>
 <body>
   <div id="offline" class="offline-bar" hidden>بدون إنترنت — التطبيق يشتغل، والنوبات تنحفظ وتنرسل بعدين</div>
+  <header id="infobar" class="glass" hidden></header>
   <main id="app" aria-live="polite"></main>
+  <nav id="tabbar" class="glass" aria-label="التنقل" hidden></nav>
   <script src="../config.js"></script>
   <script src="../shared/icons.js"></script>
   <script src="app.js"></script>

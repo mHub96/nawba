@@ -94,6 +94,28 @@ def eleven_tts(text, voice_id, model, key, path):
         path.write_bytes(r.read())
 
 
+LOUDNESS = "loudnorm=I=-14:TP=-1.0:LRA=11"   # -14 LUFS: loud and even on phone speakers; true-peak limit -1 dBTP
+
+
+def normalize(paths):
+    """Make every clip equally loud: two-pass EBU R128 loudness normalisation to -14 LUFS with a -1 dBTP ceiling
+    (pass 1 measures, pass 2 applies a single linear gain, so speech keeps its natural dynamics).
+    Needs: pip install imageio-ffmpeg"""
+    import subprocess, imageio_ffmpeg
+    ff = imageio_ffmpeg.get_ffmpeg_exe()
+    for p in paths:
+        r = subprocess.run([ff, "-hide_banner", "-i", str(p), "-af", LOUDNESS + ":print_format=json", "-f", "null", "-"],
+                           capture_output=True, text=True)
+        m = json.loads(r.stderr[r.stderr.rindex("{"):r.stderr.rindex("}") + 1])
+        gain = -14.0 - float(m["input_i"])
+        # one linear gain to -14 LUFS, then a transparent look-ahead limiter catches only the short peaks (-1 dBFS)
+        filt = f"volume={gain:.2f}dB,alimiter=limit=0.89:attack=5:release=50:level=false"
+        tmp = p.with_suffix(".tmp.mp3")
+        subprocess.run([ff, "-hide_banner", "-loglevel", "error", "-y", "-i", str(p), "-af", filt, "-ar", "44100",
+                        "-c:a", "libmp3lame", "-b:a", "128k", str(tmp)], check=True)
+        tmp.replace(p)
+
+
 async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
     OUT.mkdir(parents=True, exist_ok=True)
     api_key = openai_key() if engine == "openai" else eleven_key() if engine == "elevenlabs" else None
@@ -103,7 +125,7 @@ async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
     old_hashes = old.get("hashes", {})
     todo, hashes = [], {}
     for key, text in lines():
-        h = hashlib.sha1(f"{tag}|{rate}|{text}".encode()).hexdigest()[:12]
+        h = hashlib.sha1(f"{tag}|{rate}|{LOUDNESS}|{text}".encode()).hexdigest()[:12]
         hashes[key] = h
         if (old_hashes.get(key) != h or not (OUT / f"{key}.mp3").exists()) and (not only or key in only):
             todo.append((key, text))
@@ -131,6 +153,9 @@ async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
             raise SystemExit(f"failed: {k}")
 
     await asyncio.gather(*(one(k, t) for k, t in todo))
+    if todo:
+        print(f"normalising loudness of {len(todo)} clips")
+        normalize([OUT / f"{k}.mp3" for k, _ in todo])
     for f in OUT.glob("*.mp3"):  # remove clips no longer referenced
         if f.stem not in hashes:
             f.unlink()

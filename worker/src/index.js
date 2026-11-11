@@ -9,7 +9,8 @@ const BY_ID = Object.fromEntries(ITEMS.map(i => [i.id, i]));
 const LEVEL = { nurse: 1, doctor: 2, admin: 3, owner: 4 };
 const DEFAULTS = {
   features: { ambulance: false, video: false, videoUpload: false, videoMaxMb: 25, emergencyNumber: '911', rescueAlertMin: 5 },
-  visibility: {}, publicUrl: '', centerName: { ar: 'مركز الصرع', en: 'Epilepsy Center' }
+  visibility: {}, publicUrl: '', centerName: { ar: 'مركز الصرع', en: 'Epilepsy Center' },
+  credits: { supervisor: { ar: 'د. أطياف', en: 'Dr. Atyaf' }, developer: { ar: 'د. محمد رياض', en: 'Dr. Mohammed Riyadh' } }
 };
 const NURSE_FIELDS = ['guardian', 'phone', 'phone2', 'governorate', 'address', 'contacts'];
 
@@ -164,6 +165,8 @@ async function getPatient(c) {
 }
 
 // ----- setup & auth -----
+// public, no sign-in: what the sign-in screens and footers need (cached 60 s per isolate)
+on('GET', '/api/public', async (c) => json({ centerName: await getSetting(c.env, 'centerName'), credits: await getSetting(c.env, 'credits') }));
 on('GET', '/api/setup', async (c) => json({ needsOwner: !(await one(c.env, 'SELECT 1 AS x FROM staff LIMIT 1')) }));
 on('POST', '/api/setup', async (c) => {
   if (await one(c.env, 'SELECT 1 AS x FROM staff LIMIT 1')) throw new HttpError(409, 'exists');
@@ -269,9 +272,13 @@ on('PUT', '/api/catalog/visibility', staffAuth, atLeast('admin'), async (c) => {
   await audit(c.env, actor(c), 'catalog.visibility', null, c.body);
   return json({ ok: true });
 });
-on('GET', '/api/settings', staffAuth, async (c) => json({ features: await getSetting(c.env, 'features'), publicUrl: await getSetting(c.env, 'publicUrl'), centerName: await getSetting(c.env, 'centerName'), videoStorage: !!c.env.VIDEOS }));
+on('GET', '/api/settings', staffAuth, async (c) => json({ features: await getSetting(c.env, 'features'), publicUrl: await getSetting(c.env, 'publicUrl'), centerName: await getSetting(c.env, 'centerName'), credits: await getSetting(c.env, 'credits'), videoStorage: !!c.env.VIDEOS }));
 on('PUT', '/api/settings', staffAuth, atLeast('admin'), async (c) => {
-  const { features, publicUrl, centerName } = c.body;
+  const { features, publicUrl, centerName, credits } = c.body;
+  if (credits && c.staff.role === 'owner') {
+    const clean = (o) => ({ ar: String(o?.ar || '').slice(0, 80), en: String(o?.en || '').slice(0, 80) });
+    await setSetting(c.env, 'credits', { supervisor: clean(credits.supervisor), developer: clean(credits.developer) });
+  } else if (credits) throw new HttpError(403, 'owner_only');
   if (features) {
     const f = await getSetting(c.env, 'features');
     for (const k of ['ambulance', 'video', 'videoUpload']) if (k in features) f[k] = !!features[k];
@@ -432,7 +439,7 @@ on('GET', '/api/usage', staffAuth, atLeast('admin'), async (c) => {
 // ----- family -----
 on('GET', '/api/me', patientAuth, async (c) => {
   const p = c.patient, d = JSON.parse(p.data);
-  const [feats, vis, centerName] = await Promise.all([getSetting(c.env, 'features'), getSetting(c.env, 'visibility'), getSetting(c.env, 'centerName')]);
+  const [feats, vis, centerName, credits] = await Promise.all([getSetting(c.env, 'features'), getSetting(c.env, 'visibility'), getSetting(c.env, 'centerName'), getSetting(c.env, 'credits')]);
   const familyCats = catalog.categories.filter(x => x.family).map(x => x.id);
   const typical = new Set((d.seizures || []).flatMap(s => [...(s.aura || []), ...(s.ictal || []), ...(s.postictal || []), ...(s.triggers || [])]));
   const items = ITEMS.filter(i => familyCats.includes(i.cat) && visibleFor(p, i.id, vis))
@@ -451,7 +458,7 @@ on('GET', '/api/me', patientAuth, async (c) => {
     },
     items, edu: education.filter(m => visEdu.has(m.id)),
     features: { ambulance: feats.ambulance, video: feats.video, videoUpload: videoOk, videoMaxMb: feats.videoMaxMb, emergencyNumber: feats.emergencyNumber, rescueAlertMin: feats.rescueAlertMin },
-    centerName
+    centerName, credits
   });
 });
 on('GET', '/api/me/events', patientAuth, async (c) => json((await all(c.env, 'SELECT * FROM events WHERE patient_id = ? ORDER BY started_at DESC LIMIT 60', c.patient.id)).map(eventRow)));

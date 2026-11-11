@@ -88,6 +88,7 @@ function patientRow(p, full = true) {
 }
 
 // ---------- setup & auth ----------
+app.get('/api/public', (req, res) => res.json({ centerName: D.getSetting('centerName'), credits: D.getSetting('credits') }));
 app.get('/api/setup', (req, res) => res.json({ needsOwner: !db.prepare('SELECT 1 FROM staff LIMIT 1').get() }));
 app.post('/api/setup', (req, res) => {
   if (db.prepare('SELECT 1 FROM staff LIMIT 1').get()) return res.status(409).json({ error: 'exists' });
@@ -194,9 +195,14 @@ app.put('/api/catalog/visibility', staffAuth, atLeast('admin'), (req, res) => {
   D.audit(actor(req), 'catalog.visibility', null, req.body);
   res.json({ ok: true });
 });
-app.get('/api/settings', staffAuth, (req, res) => res.json({ features: D.getSetting('features'), publicUrl: D.getSetting('publicUrl'), centerName: D.getSetting('centerName') }));
+app.get('/api/settings', staffAuth, (req, res) => res.json({ features: D.getSetting('features'), publicUrl: D.getSetting('publicUrl'), centerName: D.getSetting('centerName'), credits: D.getSetting('credits') }));
 app.put('/api/settings', staffAuth, atLeast('admin'), (req, res) => {
-  const { features, publicUrl, centerName } = req.body || {};
+  const { features, publicUrl, centerName, credits } = req.body || {};
+  if (credits) {
+    if (req.staff.role !== 'owner') return res.status(403).json({ error: 'owner_only' });
+    const clean = (o) => ({ ar: String(o?.ar || '').slice(0, 80), en: String(o?.en || '').slice(0, 80) });
+    D.setSetting('credits', { supervisor: clean(credits.supervisor), developer: clean(credits.developer) });
+  }
   if (features) {
     const f = D.getSetting('features');
     for (const k of ['ambulance', 'video', 'videoUpload']) if (k in features) f[k] = !!features[k];
@@ -356,7 +362,7 @@ app.get('/api/me', patientAuth, (req, res) => {
     items,
     edu: C.edu.filter(m => visEdu.has(m.id)),
     features: { ambulance: feats.ambulance, video: feats.video, videoUpload: feats.video && feats.videoUpload, videoMaxMb: feats.videoMaxMb, emergencyNumber: feats.emergencyNumber, rescueAlertMin: feats.rescueAlertMin },
-    centerName: D.getSetting('centerName')
+    centerName: D.getSetting('centerName'), credits: D.getSetting('credits')
   });
 });
 app.get('/api/me/events', patientAuth, (req, res) => {

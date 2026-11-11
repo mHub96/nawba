@@ -12,7 +12,7 @@
   color-scheme: light;
   --r-xl: 30px; --r-lg: 22px; --r-md: 16px; --r-sm: 12px;
   --display: "Reem Kufi", "IBM Plex Sans Arabic", "Segoe UI", sans-serif;
-  --text: "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
+  --text: -apple-system, BlinkMacSystemFont, "SF Arabic", "IBM Plex Sans Arabic", "Segoe UI", Tahoma, sans-serif;
 }
 /* Midday: maximum contrast for reading a screen in strong Iraqi sun */
 :root[data-theme="midday"] {
@@ -57,7 +57,7 @@ a { color: inherit; }
 [hidden] { display: none !important; }
 h1, h2, h3, .display { font-family: var(--display); font-weight: 700; letter-spacing: 0; }
 
-#app { min-height: 100vh; max-width: 540px; margin: 0 auto; display: flex; flex-direction: column; }
+#app { min-height: 100vh; min-height: 100dvh; max-width: 540px; margin: 0 auto; display: flex; flex-direction: column; }
 .screen { flex: 1; display: flex; flex-direction: column; padding: 14px 16px calc(24px + env(safe-area-inset-bottom)); }
 @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition: none !important; } }
 
@@ -120,7 +120,7 @@ h1, h2, h3, .display { font-family: var(--display); font-weight: 700; letter-spa
 .pill svg { width: 16px; height: 16px; }
 .pill.clay { background: var(--crimson-soft); }
 .pill.saffron { background: var(--ochre-soft); }
-.section-title { font-family: var(--display); font-weight: 500; font-size: 17px; color: var(--muted); margin: 22px 4px 10px; }
+.section-title { font-family: var(--text); font-weight: 500; font-size: 14px; color: var(--muted); margin: 24px 14px 8px; }
 .rescue { border: 2px solid var(--crimson); background: var(--crimson-soft); }
 
 /* ---------- forms & buttons ---------- */
@@ -183,7 +183,7 @@ body.flow.after .flow-head .icon-btn.on { background: var(--lapis); border-color
 .dots i.on { opacity: 1; background: var(--ochre); }
 body.flow.after .dots i.on { background: var(--lapis); }
 
-.step { flex: 1; display: flex; flex-direction: column; justify-content: center; text-align: start; padding: 10px 2px 16px; }
+.step { flex: 1; display: flex; flex-direction: column; justify-content: center; justify-content: safe center; text-align: start; padding: 10px 2px 16px; }
 .picto { width: min(50vw, 196px); aspect-ratio: 1; border-radius: 34px; display: grid; place-items: center; background: rgba(255,255,255,.07); border: 1px solid rgba(255,255,255,.12); margin: 0 0 22px; color: var(--ochre); }
 body.flow.after .picto { background: var(--lapis-soft); border-color: transparent; color: var(--lapis); }
 .picto svg { width: 74%; height: 74%; }
@@ -264,3 +264,81 @@ body.flow.after .replay { background: var(--lapis-soft); }
 .sheet h3 { margin: 0 4px 10px; font-size: 20px; }
 .sheet .row.on { background: var(--lapis-soft); }
 .sheet .row.on .ic { background: var(--lapis); color: var(--on-lapis); }
+
+/* ================= Apple-style frame (Liquid Glass) ================= */
+.glass {
+  background: color-mix(in srgb, var(--surface) 70%, transparent);
+  -webkit-backdrop-filter: blur(24px) saturate(180%); backdrop-filter: blur(24px) saturate(180%);
+  border: 1px solid color-mix(in srgb, var(--line) 70%, transparent);
+  box-shadow: inset 0 1px 0 color-mix(in srgb, #fff 55%, transparent), 0 10px 30px -14px rgba(5, 10, 28, .35);
+}
+:root[data-theme="evening"] .glass, :root[data-theme="night"] .glass { box-shadow: inset 0 1px 0 rgba(255,255,255,.08), 0 10px 30px -14px rgba(0,0,0,.6); }
+
+#infobar {
+  position: fixed; z-index: 40; top: 0; left: 50%; transform: translateX(-50%); width: min(100%, 540px);
+  display: flex; align-items: center; gap: 10px; padding: calc(8px + env(safe-area-inset-top)) 14px 8px;
+  border-width: 0 0 1px; border-radius: 0 0 22px 22px;
+}
+#infobar .brand-mark { width: 34px; height: 34px; }
+#infobar .who { flex: 1; min-width: 0; line-height: 1.3; }
+#infobar .who b { display: block; font-size: 15.5px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#infobar .who small { display: block; font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#infobar .icon-btn { width: 38px; height: 38px; }
+#infobar .icon-btn svg { width: 20px; height: 20px; }
+.net { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; padding: 3px 9px; border-radius: 999px; background: var(--ok-soft); color: var(--ok); white-space: nowrap; }
+.net i { width: 7px; height: 7px; border-radius: 50%; background: currentColor; }
+.net.off { background: var(--ochre-soft); color: var(--ochre-ink); }
+.net.off i { display: none; }
+.net svg { width: 15px; height: 15px; }
+:root[data-theme="evening"] .net.off, :root[data-theme="night"] .net.off { color: var(--ochre); }
+
+#tabbar {
+  position: fixed; z-index: 40; left: 50%; transform: translateX(-50%); bottom: calc(10px + env(safe-area-inset-bottom));
+  width: min(100% - 24px, 500px); display: grid; grid-template-columns: repeat(5, 1fr); padding: 6px; border-radius: 999px;
+}
+#tabbar a { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 2px; min-height: 54px; border-radius: 999px; color: var(--muted); text-decoration: none; font-size: 11.5px; font-weight: 500; transition: background .2s, color .2s; }
+#tabbar a svg { width: 25px; height: 25px; }
+#tabbar a.on { color: var(--lapis); background: color-mix(in srgb, var(--lapis) 13%, transparent); }
+#tabbar a:active { transform: scale(.96); }
+body.framed .screen { padding-top: calc(72px + env(safe-area-inset-top)); padding-bottom: calc(104px + env(safe-area-inset-bottom)); }
+body.flow #infobar, body.flow #tabbar { display: none; }
+
+.large-title { font-family: var(--text); font-weight: 700; font-size: 32px; line-height: 1.25; margin: 6px 2px 14px; }
+.back-link { display: inline-flex; align-items: center; gap: 2px; color: var(--lapis); text-decoration: none; font-size: 17px; margin: 0 0 2px -4px; padding: 4px 0; }
+.back-link svg { width: 22px; height: 22px; }
+
+/* inset grouped list refinements */
+.list { border-radius: 18px; }
+.row .ic.danger { background: var(--crimson-soft); color: var(--crimson); }
+.switch { width: 50px; height: 30px; border-radius: 999px; background: var(--line); position: relative; flex: none; transition: background .2s; }
+.switch i { position: absolute; top: 2px; inset-inline-start: 2px; width: 26px; height: 26px; border-radius: 50%; background: #fff; box-shadow: 0 2px 6px rgba(0,0,0,.25); transition: transform .2s; }
+.switch.on { background: var(--ok); }
+.switch.on i { transform: translateX(-20px); }
+[dir=ltr] .switch.on i { transform: translateX(20px); }
+
+/* install card */
+.install-card { display: flex; align-items: center; gap: 12px; padding: 12px 12px 12px 8px; margin: 0 0 14px; border-radius: 20px; background: var(--surface); border: 1px solid var(--line); }
+.install-card .app-icon { width: 52px; height: 52px; flex: none; border-radius: 13px; overflow: hidden; box-shadow: 0 4px 12px -4px rgba(15, 36, 99, .45); }
+.install-card .app-icon svg { width: 100%; height: 100%; display: block; }
+.install-card .tx { flex: 1; min-width: 0; line-height: 1.45; }
+.install-card .tx b { display: block; font-size: 16px; font-weight: 600; }
+.install-card .tx small { color: var(--muted); font-size: 13px; }
+.pill-btn { background: var(--lapis); color: var(--on-lapis); font-weight: 600; font-size: 15px; padding: 7px 16px; border-radius: 999px; flex: none; }
+.install-card .x { width: 28px; height: 28px; border-radius: 50%; display: grid; place-items: center; background: var(--sunk); color: var(--muted); flex: none; }
+.install-card .x svg { width: 15px; height: 15px; }
+
+/* sheet steps */
+.steps { list-style: none; padding: 0; margin: 4px 0 16px; display: grid; gap: 10px; counter-reset: s; }
+.steps li { display: flex; align-items: center; gap: 12px; background: var(--sunk); border-radius: 14px; padding: 10px 12px; font-size: 16px; line-height: 1.5; }
+.steps .ic { width: 38px; height: 38px; border-radius: 10px; background: var(--surface); color: var(--lapis); display: grid; place-items: center; flex: none; }
+.steps .ic svg { width: 22px; height: 22px; }
+
+/* credits */
+.credits { text-align: center; margin: 26px 0 6px; color: var(--muted); font-size: 13.5px; line-height: 1.7; }
+.credits .brand-mark { display: block; width: 40px; height: 40px; margin: 0 auto 6px; opacity: .9; }
+.credits p { margin: 0; }
+.credits b { color: var(--ink); font-family: var(--display); font-size: 16px; }
+.credits .copy { margin-top: 4px; font-size: 12.5px; }
+
+/* old per-screen header no longer used */
+.topbar { display: none; }

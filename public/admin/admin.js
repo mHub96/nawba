@@ -51,6 +51,7 @@
     used: ['used', 'مستخدم'], remaining: ['remaining', 'متبقٍ'], of: ['of', 'من'], resetsIn: ['Daily limits reset in', 'تُصفَّر الحدود اليومية بعد'], last7: ['Last 7 days', 'آخر ٧ أيام'], date: ['Date', 'التاريخ'], refresh: ['Refresh', 'تحديث'],
     notConfigured: ['Usage statistics are not connected (CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID secrets missing on the Worker).', 'إحصاءات الاستهلاك غير مربوطة (المفاتيح CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID غير موجودة في الـWorker).'], typical: ['typical', 'المعتاد'], worst: ['slowest 1%', 'أبطأ ١٪'], limitWord: ['limit', 'الحد'],
     checkUpdate: ['Check for updates', 'فحص التحديثات'], updateAvail: ['Update available — click to update', 'تحديث جديد متوفر — اضغط للتحديث'], upToDate: ['You have the latest version ✓', 'لديك أحدث إصدار ✓'], updating: ['Updating…', 'جارٍ التحديث…'], checking: ['Checking…', 'جارٍ الفحص…'], offlineMsg: ['No internet connection.', 'لا يوجد اتصال بالإنترنت.'], versionWord: ['Version', 'الإصدار'],
+    credits: ['Credits', 'حقوق التطبيق'], creditsHint: ['Shown in the family app and staff panel. Only the Owner can change them.', 'تظهر في تطبيق العائلة ولوحة الكادر. يغيّرها المالك فقط.'], supervisor: ['Supervision', 'الإشراف'], developer: ['App development', 'تطوير التطبيق'], nameAr: ['Name (Arabic)', 'الاسم (عربي)'], nameEn: ['Name (English)', 'الاسم (إنجليزي)'], rights: ['All rights reserved', 'جميع الحقوق محفوظة'], tab_dashboard: ['Home', 'الرئيسية'], tab_patients: ['Patients', 'المرضى'], tab_content: ['Content', 'المحتوى'], tab_settings: ['Settings', 'الإعدادات'], more: ['More', 'المزيد'], menu: ['Menu', 'القائمة'],
     theme: ['Theme', 'المظهر'], error: ['Something went wrong.', 'حدث خطأ.'], forbidden: ['You do not have permission for this.', 'ليست لديك صلاحية لهذا.'], minutes: ['min', 'د'], cancel: ['Cancel', 'إلغاء'], close: ['Close', 'إغلاق'], none: ['—', '—']
   };
   let lang = store.get('lang', 'ar');
@@ -95,6 +96,7 @@
       <div class="brand">${I.logo}<div><b>${t('appName')}</b><div class="muted small">${t('console')}</div></div></div>
       ${inner}
       <div style="display:flex;justify-content:space-between;margin-top:16px" class="small"><a href="#" id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</a><a href="#" id="upd">⟳ ${t('checkUpdate')}</a><a href="../app/">/app</a></div>
+      ${creditsFooter()}
     </div></div>`;
     $('#upd').onclick = (e) => { e.preventDefault(); checkUpdate(e.currentTarget); };
     $('#lang-sw').onclick = (e) => { e.preventDefault(); lang = lang === 'en' ? 'ar' : 'en'; store.set('lang', lang); boot(); };
@@ -130,12 +132,20 @@
 
   // ---------------- shell ----------------
   const NAV = [
-    ['dashboard', '#/', I.sun, 'nurse'], ['patients', '#/patients', I.people, 'nurse'], ['content', '#/content', I.book, 'nurse'],
-    ['settings', '#/settings', I.edit, 'nurse'], ['staff', '#/staff', I.user, 'admin'], ['usage', '#/usage', I.clock, 'admin'], ['audit', '#/audit', I.list, 'admin'], ['account', '#/account', I.heart, 'nurse']
+    ['dashboard', '#/', I.grid, 'nurse'], ['patients', '#/patients', I.people, 'nurse'], ['content', '#/content', I.book, 'nurse'],
+    ['settings', '#/settings', I.gear, 'nurse'], ['staff', '#/staff', I.shield, 'admin'], ['usage', '#/usage', I.chart, 'admin'], ['audit', '#/audit', I.list, 'admin'], ['account', '#/account', I.user, 'nurse']
   ];
+  const MOBILE_TABS = ['dashboard', 'patients', 'content', 'settings'];
+  function creditsFooter() {
+    const c = (SETTINGS && SETTINGS.credits) || store.get('credits', null) || { supervisor: { ar: 'د. أطياف', en: 'Dr. Atyaf' }, developer: { ar: 'د. محمد رياض', en: 'Dr. Mohammed Riyadh' } };
+    const L = lang === 'en' ? 'en' : 'ar';
+    return `<div class="credits"><div>${t('supervisor')}: <b>${esc(c.supervisor?.[L] || '')}</b></div><div>${t('developer')}: <b>${esc(c.developer?.[L] || '')}</b></div><div class="copy">© ${new Date().getFullYear()} ${t('appName')}. ${t('rights')}</div></div>`;
+  }
   function shell() {
     document.body.innerHTML = `
-      <div class="mobile-top"><button id="burger" aria-label="menu"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M4 7h16M4 12h16M4 17h16"/></svg></button><b>${t('appName')}</b></div>
+      <header class="mobile-top glass"><span class="mt-logo">${I.logo}</span><b id="mt-title">${t('appName')}</b><span class="mt-user">${esc(ME.name)}<small>${t(ME.role)}</small></span></header>
+      <nav class="mobile-tabs glass" aria-label="${t('menu')}">${NAV.filter(n => MOBILE_TABS.includes(n[0]) && can(n[3])).map(n => `<a href="${n[1]}" data-tab="${n[0]}">${n[2]}<span>${t('tab_' + n[0])}</span></a>`).join('')}<button id="burger" data-tab="more">${I.more}<span>${t('more')}</span></button></nav>
+      <div class="scrim" id="scrim"></div>
       <div class="shell">
         <aside class="rail" id="rail">
           <div class="brand">${I.logo}<div><b>${t('appName')}</b><small>${esc((SETTINGS?.centerName || {})[lang === 'en' ? 'en' : 'ar'] || t('console'))}</small></div></div>
@@ -144,18 +154,24 @@
           <div class="me"><b>${esc(ME.name)}</b><span class="role-tag">${t(ME.role)}</span>
             <div class="row"><button id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</button><button id="theme-sw" aria-label="${t('theme')}" title="${t('theme')}: ${esc(themeName(NawbaTheme.get()))}">◐</button><button id="out">${t('logout')}</button></div>
             <button id="upd" class="upd ${UPDATE_AVAILABLE ? 'avail' : ''}">⟳ ${UPDATE_AVAILABLE ? t('updateAvail') : t('checkUpdate')}</button>
-            <div class="ver">${t('versionWord')} <span class="ltr num">${esc(CUR_VERSION.slice(0, 7))}</span></div></div>
+            <div class="ver">${t('versionWord')} <span class="ltr num">${esc(CUR_VERSION.slice(0, 7))}</span></div>${creditsFooter()}</div>
         </aside>
         <main id="main"></main>
       </div>`;
-    $('#burger').onclick = () => $('#rail').classList.toggle('open');
+    $('#burger').onclick = () => { $('#rail').classList.toggle('open'); $('#scrim').classList.toggle('on'); };
+    $('#scrim').onclick = () => { $('#rail').classList.remove('open'); $('#scrim').classList.remove('on'); };
     $('#lang-sw').onclick = async () => { lang = lang === 'en' ? 'ar' : 'en'; store.set('lang', lang); store.set('langChosen', true); api('/api/staff/me', { method: 'POST', body: { lang } }).catch(() => {}); applyLang(); shell(); route(); };
     $('#theme-sw').onclick = (e) => { const m = NawbaTheme.next(); e.currentTarget.title = t('theme') + ': ' + themeName(m); toast(t('theme') + ': ' + themeName(m)); };
     $('#upd').onclick = () => checkUpdate($('#upd'));
     $('#out').onclick = async () => { await api('/api/staff/logout', { method: 'POST' }).catch(() => {}); token = ''; store.set('token', ''); boot(); };
   }
   const main = () => $('#main');
-  function setNav(k) { $$('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === k)); $('#rail')?.classList.remove('open'); }
+  function setNav(k) {
+    $$('[data-nav]').forEach(a => a.classList.toggle('on', a.dataset.nav === k));
+    $$('[data-tab]').forEach(a => a.classList.toggle('on', a.dataset.tab === k || (a.dataset.tab === 'more' && !MOBILE_TABS.includes(k))));
+    const mt = $('#mt-title'); if (mt) mt.textContent = t(k);
+    $('#rail')?.classList.remove('open'); $('#scrim')?.classList.remove('on');
+  }
   function head(title, sub = '', actions = '', crumbs = '') {
     return `${crumbs ? `<div class="crumbs">${crumbs}</div>` : ''}<div class="page-head"><h1>${title}${sub ? `<small>${sub}</small>` : ''}</h1><div class="btn-group">${actions}</div></div>`;
   }
@@ -572,6 +588,10 @@
         <label class="f">${t('centreEn')}<input type="text" id="cne" value="${esc(SETTINGS.centerName?.en || '')}" ${dis} dir="ltr"></label>
         <label class="f span2">${t('publicUrl')}<input type="url" class="ltr" id="pu" value="${esc(SETTINGS.publicUrl || '')}" ${ME.role === 'owner' ? '' : 'disabled'} placeholder="https://"><span class="small">${t('publicUrlHint')}</span></label>
       </div></div>
+      <div class="panel"><h2>${t('credits')}<span class="hint">${t('creditsHint')}</span></h2><div class="grid g2">
+        ${['supervisor', 'developer'].map(k => `<label class="f">${t(k)}: ${t('nameAr')}<input type="text" id="cr-${k}-ar" dir="rtl" value="${esc(SETTINGS.credits?.[k]?.ar || '')}" ${ME.role === 'owner' ? '' : 'disabled'}></label>
+        <label class="f">${t(k)}: ${t('nameEn')}<input type="text" id="cr-${k}-en" dir="ltr" value="${esc(SETTINGS.credits?.[k]?.en || '')}" ${ME.role === 'owner' ? '' : 'disabled'}></label>`).join('')}
+      </div></div>
       ${ed ? `<div class="save-bar"><span class="muted"></span><button class="btn" id="save">${t('save')}</button></div>` : ''}`;
     $$('[data-feat]').forEach(cb => cb.onchange = async () => {
       try { await api('/api/settings', { method: 'PUT', body: { features: { [cb.dataset.feat]: cb.checked } } }); toast(t('saved')); if (cb.dataset.feat === 'video') settingsPage(); }
@@ -579,8 +599,11 @@
     });
     const sv = $('#save'); if (sv) sv.onclick = async () => {
       const body = { features: { emergencyNumber: $('#num').value, rescueAlertMin: $('#ral').value, videoMaxMb: $('#mb').value }, centerName: { ar: $('#cna').value, en: $('#cne').value } };
-      if (ME.role === 'owner') body.publicUrl = $('#pu').value;
-      try { await api('/api/settings', { method: 'PUT', body }); toast(t('saved')); SETTINGS = await api('/api/settings'); }
+      if (ME.role === 'owner') {
+        body.publicUrl = $('#pu').value;
+        body.credits = { supervisor: { ar: $('#cr-supervisor-ar').value, en: $('#cr-supervisor-en').value }, developer: { ar: $('#cr-developer-ar').value, en: $('#cr-developer-en').value } };
+      }
+      try { await api('/api/settings', { method: 'PUT', body }); toast(t('saved')); SETTINGS = await api('/api/settings'); store.set('credits', SETTINGS.credits); }
       catch (er) { toast(errMsg(er)); }
     };
   }
@@ -712,6 +735,7 @@
   // ---------------- boot ----------------
   async function boot() {
     applyLang();
+    fetch(API + '/api/public').then(r => r.json()).then(d => { if (d.credits) store.set('credits', d.credits); }).catch(() => {});
     if (!token) {
       const s = await fetch(API + '/api/setup').then(r => r.json()).catch(() => ({}));
       return s.needsOwner ? setupScreen() : loginScreen();

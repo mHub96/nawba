@@ -74,7 +74,8 @@ const DEFAULT_SETTINGS = {
   features: { ambulance: false, video: false, videoUpload: false, videoMaxMb: 25, emergencyNumber: '911', rescueAlertMin: 5 },
   visibility: {},           // catalog item id -> boolean (falls back to catalog default)
   publicUrl: '',            // base URL used inside QR codes; blank = derived from request
-  centerName: { ar: 'مركز الصرع', en: 'Epilepsy Center' }
+  centerName: { ar: 'مركز الصرع', en: 'Epilepsy Center' },
+  credits: { supervisor: { ar: 'د. أطياف', en: 'Dr. Atyaf' }, developer: { ar: 'د. محمد رياض', en: 'Dr. Mohammed Riyadh' } }
 };
 function getSetting(key) {
   const r = db.prepare('SELECT value FROM settings WHERE key = ?').get(key);

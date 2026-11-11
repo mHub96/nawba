@@ -4,7 +4,7 @@
 const VERSION = 'nawba-dev';
 const R = (p) => new URL(p, self.location.href).href;
 const SHELL = [
-  './', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
+  './', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/apple-touch-icon.png',
   '../config.js', '../shared/icons.js', '../shared/theme.js', '../content/narration.json', '../img/guide.jpg', '../audio/index.json',
   '../fonts/fonts.css',
   '../fonts/reem-kufi-arabic-500-normal.woff2', '../fonts/reem-kufi-arabic-700-normal.woff2', '../fonts/reem-kufi-latin-700-normal.woff2',
