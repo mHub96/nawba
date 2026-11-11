@@ -1,0 +1,23 @@
+# Nawba API — Cloudflare Worker
+name = "nawba-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+workers_dev = true
+
+[vars]
+# Where the family app lives (used inside QR codes). Can also be changed by the Owner in App settings.
+PUBLIC_URL = "https://mhub96.github.io/nawba"
+# Websites allowed to call this API (comma-separated). Local testing: add http://localhost:8080
+ALLOWED_ORIGINS = "https://mhub96.github.io,http://localhost:8080"
+
+[[d1_databases]]
+binding = "DB"
+database_name = "nawba"
+database_id = "dc57f923-a4e4-4908-b267-1e8eec6f9228"
+migrations_dir = "migrations"
+
+# Seizure-video storage (optional). Enable R2 in the Cloudflare dashboard, create a bucket
+# named "nawba-videos", then remove the "#" from the three lines below and redeploy.
+# [[r2_buckets]]
+# binding = "VIDEOS"
+# bucket_name = "nawba-videos"

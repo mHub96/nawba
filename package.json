@@ -1,0 +1,25 @@
+{
+  "name": "nawba",
+  "version": "1.0.0",
+  "description": "نوبة — epilepsy seizure first-aid PWA for families + staff console",
+  "main": "server/server.js",
+  "scripts": {
+    "start": "node server/server.js",
+    "audio": "python tools/gen_audio.py"
+  },
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "dependencies": {
+    "@fontsource/readex-pro": "^5.3.0",
+    "express": "^4.22.3",
+    "qrcode": "^1.5.4"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "private": true,
+  "devDependencies": {
+    "qrcode-generator": "^1.5.2"
+  }
+}

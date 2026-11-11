@@ -1,0 +1,71 @@
+name: Deploy Nawba
+
+# Every push to main: (1) deploys the API to Cloudflare Workers + applies D1 migrations,
+# (2) publishes the family app and staff panel to GitHub Pages, wired to that API.
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: deploy
+  cancel-in-progress: false
+
+jobs:
+  api:
+    name: API → Cloudflare
+    runs-on: ubuntu-latest
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+      CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: 22 }
+      - name: Apply database migrations (D1)
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: worker
+        run: npx --yes wrangler@4 d1 migrations apply nawba --remote
+      - name: Deploy Worker
+        id: deploy
+        if: env.CLOUDFLARE_API_TOKEN != ''
+        working-directory: worker
+        run: |
+          npx --yes wrangler@4 deploy | tee deploy.log
+          echo "url=$(grep -oE 'https://[a-zA-Z0-9.-]+\.workers\.dev' deploy.log | head -1)" >> "$GITHUB_OUTPUT"
+      - name: No Cloudflare token yet
+        if: env.CLOUDFLARE_API_TOKEN == ''
+        run: echo "::warning::CLOUDFLARE_API_TOKEN secret is not set — API not deployed. See README → Cloudflare."
+
+  site:
+    name: Site → GitHub Pages
+    needs: api
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.pages.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Assemble site
+        env:
+          API_URL: ${{ needs.api.outputs.url || vars.NAWBA_API_URL }}
+        run: |
+          mkdir -p _site/content
+          cp -r public/* _site/
+          cp content/narration.json _site/content/
+          printf "window.NAWBA_API = '%s';\n" "$API_URL" > _site/config.js
+          printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=app/"><a href="app/">نوبة</a>\n' > _site/index.html
+          touch _site/.nojekyll
+          echo "API: $API_URL"
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with: { path: _site }
+      - id: pages
+        uses: actions/deploy-pages@v4
