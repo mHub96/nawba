@@ -6,3 +6,5 @@ worker/.wrangler/
 *.log
 WhatsApp Image*.jpeg
 *.txt
+CLAUDE.local.md
+.claude/settings.local.json

@@ -3,6 +3,9 @@ name = "nawba-api"
 main = "src/index.js"
 compatibility_date = "2025-09-01"
 workers_dev = true
+# Pinned: Nawba deploys ONLY to its own Cloudflare account (mrj-alassady), never to any other app's account.
+# A token for a different account will fail instead of deploying there.
+account_id = "8a3075fde26cf95e28b2f03d91b826b9"
 
 [vars]
 # Where the family app lives (used inside QR codes). Can also be changed by the Owner in App settings.
