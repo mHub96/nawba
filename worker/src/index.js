@@ -60,13 +60,29 @@ const one = (env, sql, ...b) => env.DB.prepare(sql).bind(...b).first();
 const all = async (env, sql, ...b) => (await env.DB.prepare(sql).bind(...b).all()).results;
 const run = (env, sql, ...b) => env.DB.prepare(sql).bind(...b).run();
 
-async function getSetting(env, key) {
-  const r = await one(env, 'SELECT value FROM settings WHERE key = ?', key);
-  if (!r) return structuredClone(DEFAULTS[key]);
-  const v = JSON.parse(r.value);
-  return (v && typeof v === 'object' && !Array.isArray(v)) ? { ...DEFAULTS[key], ...v } : v;
+// ---- per-isolate memory cache: the main lever for keeping D1 "rows read" low ----
+const MEM = new Map();
+async function cached(key, ttlMs, loader) {
+  const hit = MEM.get(key);
+  if (hit && hit.exp > Date.now()) return hit.v;
+  const v = await loader();
+  MEM.set(key, { v, exp: Date.now() + ttlMs });
+  return v;
 }
-const setSetting = (env, key, value) => run(env, 'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+const forget = (prefix) => { for (const k of MEM.keys()) if (k.startsWith(prefix)) MEM.delete(k); };
+
+async function allSettings(env) {
+  return cached('settings', 60e3, async () => Object.fromEntries((await all(env, 'SELECT key, value FROM settings')).map(r => [r.key, JSON.parse(r.value)])));
+}
+async function getSetting(env, key) {
+  const v = (await allSettings(env))[key];
+  if (v === undefined) return structuredClone(DEFAULTS[key]);
+  return (v && typeof v === 'object' && !Array.isArray(v)) ? { ...DEFAULTS[key], ...structuredClone(v) } : v;
+}
+async function setSetting(env, key, value) {
+  await run(env, 'INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value', key, JSON.stringify(value));
+  forget('settings');
+}
 const audit = (env, actor, action, target, detail) => run(env, 'INSERT INTO audit (at, actor, action, target, detail) VALUES (?,?,?,?,?)', Date.now(), actor, action, target == null ? null : String(target), detail ? JSON.stringify(detail) : null);
 
 async function createSession(env, kind, id, ttl) {
@@ -79,7 +95,7 @@ async function readSession(env, token) {
   const s = await one(env, 'SELECT * FROM sessions WHERE token_hash = ?', await sha256(token));
   return s && s.expires > Date.now() ? s : null;
 }
-const dropSessionsFor = (env, kind, id) => run(env, 'DELETE FROM sessions WHERE kind = ? AND subject_id = ?', kind, id);
+async function dropSessionsFor(env, kind, id) { await run(env, 'DELETE FROM sessions WHERE kind = ? AND subject_id = ?', kind, id); forget('auth:'); }
 
 // login throttle (10 failures / 15 min), stored in D1 so it holds across Worker instances
 async function throttled(env, key) { const f = await one(env, 'SELECT n, t FROM fails WHERE key = ?', key); return !!(f && f.n >= 10 && Date.now() - f.t < 15 * 60e3); }
@@ -119,18 +135,21 @@ const newPin = () => String(randInt(100000, 999999));
 const routes = [];
 const on = (method, pattern, ...handlers) => routes.push({ method, re: new RegExp('^' + pattern.replace(/:(\w+)/g, '(?<$1>[^/]+)') + '$'), handlers });
 
+// session + user resolved with one JOIN, cached 60 s per isolate (sign-outs and revocations clear the cache)
 const staffAuth = async (c) => {
-  const s = await readSession(c.env, c.token);
-  if (!s || s.kind !== 'staff') throw new HttpError(401, 'auth');
-  const u = await one(c.env, 'SELECT id, username, name, role, lang, active FROM staff WHERE id = ?', s.subject_id);
-  if (!u || !u.active) throw new HttpError(401, 'auth');
+  if (!c.token) throw new HttpError(401, 'auth');
+  const th = await sha256(c.token);
+  const u = await cached('auth:s:' + th, 60e3, () => one(c.env, `SELECT st.id, st.username, st.name, st.role, st.lang, st.active, s.expires
+    FROM sessions s JOIN staff st ON st.id = s.subject_id WHERE s.token_hash = ? AND s.kind = 'staff'`, th));
+  if (!u || !u.active || u.expires < Date.now()) { forget('auth:s:' + th); throw new HttpError(401, 'auth'); }
   c.staff = u;
 };
 const patientAuth = async (c) => {
-  const s = await readSession(c.env, c.token);
-  if (!s || s.kind !== 'patient') throw new HttpError(401, 'auth');
-  const p = await one(c.env, 'SELECT * FROM patients WHERE id = ?', s.subject_id);
-  if (!p || !p.active) throw new HttpError(401, 'auth');
+  if (!c.token) throw new HttpError(401, 'auth');
+  const th = await sha256(c.token);
+  const p = await cached('auth:p:' + th, 60e3, () => one(c.env, `SELECT p.*, s.expires FROM sessions s JOIN patients p ON p.id = s.subject_id
+    WHERE s.token_hash = ? AND s.kind = 'patient'`, th));
+  if (!p || !p.active || p.expires < Date.now()) { forget('auth:p:' + th); throw new HttpError(401, 'auth'); }
   c.patient = p;
 };
 const atLeast = (role) => async (c) => { if (LEVEL[c.staff.role] < LEVEL[role]) throw new HttpError(403, 'forbidden'); };
@@ -158,7 +177,7 @@ on('POST', '/api/staff/login', async (c) => {
   const u = await one(c.env, 'SELECT * FROM staff WHERE username = ? COLLATE NOCASE', String(username || '').trim());
   if (!u || !u.active || !(await checkPass(password || '', u.pass))) { await fail(c.env, key); throw new HttpError(401, 'bad_login'); }
   await clearFail(c.env, key);
-  await run(c.env, 'DELETE FROM sessions WHERE expires < ?', Date.now());
+  if (Math.random() < 0.05) await run(c.env, 'DELETE FROM sessions WHERE expires < ?', Date.now());
   const token = await createSession(c.env, 'staff', u.id, 12 * 3600e3);
   await audit(c.env, `${u.role}:${u.username}`, 'staff.login', u.id);
   return json({ token, user: { id: u.id, username: u.username, name: u.name, role: u.role, lang: u.lang } });
@@ -186,9 +205,10 @@ on('POST', '/api/patient/login', async (c) => {
 
 // ----- staff self -----
 on('GET', '/api/staff/me', staffAuth, async (c) => json({ user: c.staff, centerName: await getSetting(c.env, 'centerName') }));
-on('POST', '/api/staff/logout', staffAuth, async (c) => { await run(c.env, 'DELETE FROM sessions WHERE token_hash = ?', await sha256(c.token)); return json({ ok: true }); });
+on('POST', '/api/staff/logout', staffAuth, async (c) => { await run(c.env, 'DELETE FROM sessions WHERE token_hash = ?', await sha256(c.token)); forget('auth:'); return json({ ok: true }); });
 on('POST', '/api/staff/me', staffAuth, async (c) => {
   const { lang, oldPassword, newPassword, name } = c.body;
+  forget('auth:s:');
   if (lang) await run(c.env, 'UPDATE staff SET lang = ? WHERE id = ?', lang === 'en' ? 'en' : 'ar', c.staff.id);
   if (name) await run(c.env, 'UPDATE staff SET name = ? WHERE id = ?', String(name).trim(), c.staff.id);
   if (newPassword) {
@@ -227,6 +247,7 @@ on('PATCH', '/api/staff/:id', staffAuth, atLeast('admin'), async (c) => {
     if (String(password).length < 8) throw new HttpError(400, 'weak_password');
     await run(c.env, 'UPDATE staff SET pass = ? WHERE id = ?', await hashPass(password), t.id); await dropSessionsFor(c.env, 'staff', t.id);
   }
+  forget('auth:s:');
   await audit(c.env, actor(c), 'staff.update', t.id, { name, role, active, password: password ? 'reset' : undefined });
   return json({ ok: true });
 });
@@ -262,11 +283,13 @@ on('PUT', '/api/settings', staffAuth, atLeast('admin'), async (c) => {
 
 // ----- patients -----
 on('GET', '/api/patients', staffAuth, async (c) => {
-  const q = `%${String(c.url.searchParams.get('q') || '').trim()}%`;
-  const rows = await all(c.env, `SELECT p.*, (SELECT COUNT(*) FROM events e WHERE e.patient_id = p.id AND e.started_at > ?) AS ev30,
-      (SELECT MAX(started_at) FROM events e WHERE e.patient_id = p.id) AS last_event
-    FROM patients p WHERE p.name LIKE ? OR p.code LIKE ? ORDER BY p.active DESC, p.updated_at DESC LIMIT 500`, Date.now() - 30 * 864e5, q, q);
-  return json(rows.map(p => ({ ...patientRow(p, false), ev30: p.ev30, last_event: p.last_event })));
+  // the staff panel loads this once and searches in the browser, so it is called rarely
+  const [rows, counts] = await Promise.all([
+    all(c.env, 'SELECT id, code, name, active, created_at, updated_at, data, overrides, last_event_at FROM patients ORDER BY active DESC, updated_at DESC LIMIT 2000'),
+    all(c.env, 'SELECT patient_id, COUNT(*) AS n FROM events WHERE started_at > ? GROUP BY patient_id', Date.now() - 30 * 864e5)
+  ]);
+  const ev30 = Object.fromEntries(counts.map(r => [r.patient_id, r.n]));
+  return json(rows.map(p => ({ ...patientRow(p, false), ev30: ev30[p.id] || 0, last_event: p.last_event_at })));
 });
 on('POST', '/api/patients', staffAuth, atLeast('doctor'), async (c) => {
   const { name, data } = c.body;
@@ -294,6 +317,7 @@ on('PUT', '/api/patients/:id', staffAuth, async (c) => {
     await run(c.env, 'UPDATE patients SET active = ? WHERE id = ?', active ? 1 : 0, p.id);
     if (!active) await dropSessionsFor(c.env, 'patient', p.id);
   }
+  forget('auth:p:'); forget('stats');
   await audit(c.env, actor(c), 'patient.update', p.id, { fields: Object.keys(data || {}), active });
   return json({ ok: true });
 });
@@ -302,6 +326,7 @@ on('PUT', '/api/patients/:id/overrides', staffAuth, atLeast('doctor'), async (c)
   const ov = JSON.parse(p.overrides);
   for (const [id, v] of Object.entries(c.body)) { if (!BY_ID[id]) continue; if (v === 'show' || v === 'hide') ov[id] = v; else delete ov[id]; }
   await run(c.env, 'UPDATE patients SET overrides = ?, updated_at = ? WHERE id = ?', JSON.stringify(ov), Date.now(), p.id);
+  forget('auth:p:');
   await audit(c.env, actor(c), 'patient.overrides', p.id, c.body);
   return json({ ok: true, overrides: ov });
 });
@@ -320,12 +345,17 @@ on('POST', '/api/patients/:id/regen-qr', staffAuth, atLeast('doctor'), async (c)
 });
 
 // ----- events -----
-on('GET', '/api/patients/:id/events', staffAuth, async (c) => json((await all(c.env, 'SELECT * FROM events WHERE patient_id = ? ORDER BY started_at DESC LIMIT 1000', c.params.id)).map(eventRow)));
+async function bumpLast(env, pid, at) {
+  await run(env, 'UPDATE patients SET last_event_at = MAX(COALESCE(last_event_at, 0), ?) WHERE id = ?', at, pid);
+  forget('stats');
+}
+on('GET', '/api/patients/:id/events', staffAuth, async (c) => json((await all(c.env, 'SELECT * FROM events WHERE patient_id = ? ORDER BY started_at DESC LIMIT 500', c.params.id)).map(eventRow)));
 on('POST', '/api/patients/:id/events', staffAuth, async (c) => {
   const p = await getPatient(c);
   const { started_at, duration_sec, data } = c.body;
   const r = await run(c.env, 'INSERT INTO events (patient_id, started_at, duration_sec, source, data, created_at, created_by) VALUES (?,?,?,?,?,?,?)',
     p.id, Number(started_at) || Date.now(), duration_sec == null ? null : Number(duration_sec), 'staff', JSON.stringify(data || {}), Date.now(), c.staff.id);
+  await bumpLast(c.env, p.id, Number(started_at) || Date.now());
   await audit(c.env, actor(c), 'event.create', r.meta.last_row_id, { patient: p.id });
   return json({ id: r.meta.last_row_id });
 });
@@ -334,6 +364,8 @@ on('DELETE', '/api/events/:id', staffAuth, atLeast('doctor'), async (c) => {
   if (!e) throw new HttpError(404, 'not_found');
   if (e.video && c.env.VIDEOS) await c.env.VIDEOS.delete(e.video);
   await run(c.env, 'DELETE FROM events WHERE id = ?', e.id);
+  await run(c.env, 'UPDATE patients SET last_event_at = (SELECT MAX(started_at) FROM events WHERE patient_id = ?) WHERE id = ?', e.patient_id, e.patient_id);
+  forget('stats');
   await audit(c.env, actor(c), 'event.delete', e.id, { patient: e.patient_id });
   return json({ ok: true });
 });
@@ -346,18 +378,51 @@ on('GET', '/api/events/:id/video', staffAuth, async (c) => {
   return new Response(obj.body, { headers: { 'Content-Type': obj.httpMetadata?.contentType || 'video/mp4', 'Cache-Control': 'private, no-store' } });
 });
 on('GET', '/api/stats', staffAuth, async (c) => {
-  const now = Date.now(), n = async (sql, ...b) => (await one(c.env, sql, ...b)).n;
-  return json({
-    patients: await n('SELECT COUNT(*) AS n FROM patients WHERE active = 1'),
-    events7: await n('SELECT COUNT(*) AS n FROM events WHERE started_at > ?', now - 7 * 864e5),
-    events30: await n('SELECT COUNT(*) AS n FROM events WHERE started_at > ?', now - 30 * 864e5),
-    long30: await n('SELECT COUNT(*) AS n FROM events WHERE started_at > ? AND duration_sec >= 300', now - 30 * 864e5),
-    staff: await n('SELECT COUNT(*) AS n FROM staff WHERE active = 1'),
-    recent: (await all(c.env, 'SELECT e.id, e.started_at, e.duration_sec, e.data, p.id AS pid, p.name, p.code FROM events e JOIN patients p ON p.id = e.patient_id ORDER BY e.started_at DESC LIMIT 12'))
-      .map(r => ({ ...r, data: JSON.parse(r.data) }))
-  });
+  return json(await cached('stats', 60e3, async () => {
+    const now = Date.now();
+    const [pc, ev, recent] = await Promise.all([
+      one(c.env, 'SELECT COUNT(*) AS n FROM patients WHERE active = 1'),
+      one(c.env, 'SELECT COUNT(*) AS e30, SUM(started_at > ?) AS e7, SUM(duration_sec >= 300) AS long30 FROM events WHERE started_at > ?', now - 7 * 864e5, now - 30 * 864e5),
+      all(c.env, 'SELECT e.id, e.started_at, e.duration_sec, e.data, p.id AS pid, p.name, p.code FROM events e JOIN patients p ON p.id = e.patient_id ORDER BY e.started_at DESC LIMIT 12')
+    ]);
+    return { patients: pc.n, events7: ev.e7 || 0, events30: ev.e30 || 0, long30: ev.long30 || 0, recent: recent.map(r => ({ ...r, data: JSON.parse(r.data) })) };
+  }));
 });
-on('GET', '/api/audit', staffAuth, atLeast('admin'), async (c) => json(await all(c.env, 'SELECT * FROM audit ORDER BY id DESC LIMIT 300')));
+on('GET', '/api/audit', staffAuth, atLeast('admin'), async (c) => json(await all(c.env, 'SELECT * FROM audit ORDER BY id DESC LIMIT 150')));
+
+// ----- free-plan usage (Cloudflare GraphQL Analytics + D1 sizes), cached 5 min per isolate -----
+const FREE = { requests: 100000, rowsRead: 5000000, rowsWritten: 100000, storageBytes: 5e9, cpuMs: 10 };
+on('GET', '/api/usage', staffAuth, atLeast('admin'), async (c) => {
+  if (!c.env.CF_ANALYTICS_TOKEN || !c.env.CF_ACCOUNT_ID) return json({ configured: false, limits: FREE });
+  return json(await cached('usage', 5 * 60e3, async () => {
+    const today = new Date().toISOString().slice(0, 10);
+    const since = new Date(Date.now() - 6 * 864e5).toISOString().slice(0, 10);
+    const query = `query($a: String!, $since: Date!, $s1: Time!, $w: String!) { viewer { accounts(filter: { accountTag: $a }) {
+      d1: d1AnalyticsAdaptiveGroups(limit: 100, filter: { date_geq: $since }, orderBy: [date_ASC]) { sum { rowsRead rowsWritten } dimensions { date } }
+      wk: workersInvocationsAdaptive(limit: 500, filter: { date_geq: $since }, orderBy: [date_ASC]) { sum { requests errors } dimensions { date scriptName } }
+      cpu: workersInvocationsAdaptive(limit: 5, filter: { datetime_geq: $s1, scriptName: $w }) { quantiles { cpuTimeP50 cpuTimeP99 } }
+    } } }`;
+    const headers = { Authorization: 'Bearer ' + c.env.CF_ANALYTICS_TOKEN, 'Content-Type': 'application/json' };
+    const [gq, dbs] = await Promise.all([
+      fetch('https://api.cloudflare.com/client/v4/graphql', { method: 'POST', headers, body: JSON.stringify({ query, variables: { a: c.env.CF_ACCOUNT_ID, since, s1: today + 'T00:00:00Z', w: c.env.WORKER_NAME || 'nawba-api' } }) }).then(r => r.json()),
+      fetch(`https://api.cloudflare.com/client/v4/accounts/${c.env.CF_ACCOUNT_ID}/d1/database?per_page=100`, { headers }).then(r => r.json()).catch(() => null)
+    ]);
+    const acc = gq?.data?.viewer?.accounts?.[0];
+    if (!acc) return { configured: true, error: (gq?.errors || [])[0]?.message || 'analytics_unavailable', limits: FREE };
+    const days = {};
+    for (let i = 0; i < 7; i++) { const d = new Date(Date.now() - (6 - i) * 864e5).toISOString().slice(0, 10); days[d] = { date: d, rowsRead: 0, rowsWritten: 0, requests: 0, errors: 0 }; }
+    for (const g of acc.d1 || []) { const d = days[g.dimensions.date]; if (d) { d.rowsRead += g.sum.rowsRead; d.rowsWritten += g.sum.rowsWritten; } }
+    for (const g of acc.wk || []) { const d = days[g.dimensions.date]; if (d) { d.requests += g.sum.requests; d.errors += g.sum.errors; } }
+    const cpu = acc.cpu?.[0]?.quantiles || {};
+    const list = dbs?.result || [];
+    return {
+      configured: true, limits: FREE, today: days[today], history: Object.values(days),
+      storageBytes: list.reduce((s, d) => s + (d.file_size || 0), 0), databases: list.length,
+      cpuP50: cpu.cpuTimeP50 != null ? cpu.cpuTimeP50 / 1000 : null, cpuP99: cpu.cpuTimeP99 != null ? cpu.cpuTimeP99 / 1000 : null,
+      resetsAt: new Date(today + 'T00:00:00Z').getTime() + 864e5, fetchedAt: Date.now()
+    };
+  }));
+});
 
 // ----- family -----
 on('GET', '/api/me', patientAuth, async (c) => {
@@ -390,6 +455,7 @@ on('POST', '/api/me/events', patientAuth, async (c) => {
   if (client_id) { const ex = await one(c.env, 'SELECT id FROM events WHERE client_id = ?', String(client_id)); if (ex) return json({ id: ex.id, dup: true }); }
   const r = await run(c.env, 'INSERT INTO events (client_id, patient_id, started_at, duration_sec, source, data, created_at) VALUES (?,?,?,?,?,?,?)',
     client_id ? String(client_id) : null, c.patient.id, Number(started_at) || Date.now(), duration_sec == null ? null : Number(duration_sec), 'family', JSON.stringify(data || {}), Date.now());
+  await bumpLast(c.env, c.patient.id, Number(started_at) || Date.now());
   return json({ id: r.meta.last_row_id });
 });
 on('POST', '/api/me/events/:id/video', patientAuth, async (c) => {

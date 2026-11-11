@@ -46,6 +46,10 @@
       '<b>المالك</b> — كل الصلاحيات، ومنها إنشاء المدراء وعنوان QR العام.<br><b>المدير</b> — يدير الأطباء والممرضين، وإظهار الأسئلة والتثقيف على مستوى المركز، ومفاتيح الميزات، وتعطيل المرضى، وسجل النشاط.<br><b>الطبيب</b> — ينشئ المرضى، ويعدّل الملف كاملاً، ويخصّص ما تراه كل عائلة، ويستبدل رموز QR، ويحذف السجلات.<br><b>الممرض</b> — يطّلع على المرضى، ويعرض/يطبع رمز QR، ويعيد تعيين كلمة مرور العائلة، ويسجّل النوبات، ويعدّل بيانات التواصل.'],
     at: ['Time', 'الوقت'], who: ['Who', 'من'], action: ['Action', 'الإجراء'], target: ['Target', 'الهدف'],
     language: ['Language', 'اللغة'], changePw: ['Change password', 'تغيير كلمة المرور'], oldPw: ['Current password', 'كلمة المرور الحالية'], badOld: ['Current password is wrong.', 'كلمة المرور الحالية خاطئة.'], weak: ['At least 8 characters.', '٨ أحرف على الأقل.'],
+    usage: ['Free-plan usage', 'استهلاك الخطة المجانية'], usageHint: ['Cloudflare free-plan daily limits reset at 00:00 UTC (03:00 Baghdad). If a daily database limit is reached, Cloudflare blocks the database until the reset — families could not save seizures. Figures lag a few minutes.', 'حدود الخطة المجانية اليومية في Cloudflare تُصفَّر الساعة 00:00 UTC (03:00 بتوقيت بغداد). إذا وصلت قاعدة البيانات إلى حدها اليومي يوقفها Cloudflare حتى التصفير، ولن تستطيع العائلات حفظ النوبات. الأرقام تتأخر بضع دقائق.'],
+    uRequests: ['API requests today', 'طلبات الـAPI اليوم'], uReads: ['Database rows read today', 'صفوف مقروءة من القاعدة اليوم'], uWrites: ['Database rows written today', 'صفوف مكتوبة في القاعدة اليوم'], uStorage: ['Database storage (all D1 databases)', 'مساحة قاعدة البيانات (كل قواعد D1)'], uCpu: ['CPU time per request (today)', 'وقت المعالج لكل طلب (اليوم)'],
+    used: ['used', 'مستخدم'], remaining: ['remaining', 'متبقٍ'], of: ['of', 'من'], resetsIn: ['Daily limits reset in', 'تُصفَّر الحدود اليومية بعد'], last7: ['Last 7 days', 'آخر ٧ أيام'], date: ['Date', 'التاريخ'], refresh: ['Refresh', 'تحديث'],
+    notConfigured: ['Usage statistics are not connected (CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID secrets missing on the Worker).', 'إحصاءات الاستهلاك غير مربوطة (المفاتيح CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID غير موجودة في الـWorker).'], typical: ['typical', 'المعتاد'], worst: ['slowest 1%', 'أبطأ ١٪'], limitWord: ['limit', 'الحد'],
     theme: ['Theme', 'المظهر'], error: ['Something went wrong.', 'حدث خطأ.'], forbidden: ['You do not have permission for this.', 'ليست لديك صلاحية لهذا.'], minutes: ['min', 'د'], cancel: ['Cancel', 'إلغاء'], close: ['Close', 'إغلاق'], none: ['—', '—']
   };
   let lang = store.get('lang', 'ar');
@@ -60,7 +64,7 @@
   // ---------------- state ----------------
   const API = (window.NAWBA_API || '').replace(/\/+$/, '');
   let token = store.get('token', '');
-  let ME = null, CAT = null, SETTINGS = null;
+  let ME = null, CAT = null, SETTINGS = null, PATIENTS = null;
   const can = (role) => ME && LEVEL[ME.role] >= LEVEL[role];
 
   async function api(path, opts = {}) {
@@ -126,7 +130,7 @@
   // ---------------- shell ----------------
   const NAV = [
     ['dashboard', '#/', I.sun, 'nurse'], ['patients', '#/patients', I.people, 'nurse'], ['content', '#/content', I.book, 'nurse'],
-    ['settings', '#/settings', I.edit, 'nurse'], ['staff', '#/staff', I.user, 'admin'], ['audit', '#/audit', I.list, 'admin'], ['account', '#/account', I.heart, 'nurse']
+    ['settings', '#/settings', I.edit, 'nurse'], ['staff', '#/staff', I.user, 'admin'], ['usage', '#/usage', I.clock, 'admin'], ['audit', '#/audit', I.list, 'admin'], ['account', '#/account', I.heart, 'nurse']
   ];
   function shell() {
     document.body.innerHTML = `
@@ -170,6 +174,7 @@
       if (parts[0] === 'settings') return settingsPage();
       if (parts[0] === 'staff') return staffPage();
       if (parts[0] === 'audit') return auditPage();
+      if (parts[0] === 'usage') return usagePage();
       if (parts[0] === 'account') return accountPage();
       dashboard();
     } catch (e) { if (e.message !== 'auth') main().innerHTML = `<div class="err">${errMsg(e)}</div>`; }
@@ -200,10 +205,12 @@
   async function patientsList() {
     setNav('patients');
     main().innerHTML = head(t('patients'), '', can('doctor') ? `<a class="btn" href="#/patients/new">${I.plus}${t('newPatient')}</a>` : '') +
-      `<div class="panel"><input type="search" id="q" placeholder="${t('search')}" style="max-width:360px;margin-bottom:12px"><div id="list"></div></div>`;
-    let timer;
-    const load = async () => {
-      const rows = await api('/api/patients?q=' + encodeURIComponent($('#q').value));
+      `<div class="panel"><div class="btn-group" style="margin-bottom:12px"><input type="search" id="q" placeholder="${t('search')}" style="max-width:360px"><button class="btn ghost sm" id="reload">${t('refresh')}</button></div><div id="list"></div></div>`;
+    // the list is fetched once (cached 2 min) and searched in the browser: no database reads per keystroke
+    if (!PATIENTS || Date.now() - PATIENTS.at > 120e3) PATIENTS = { at: Date.now(), rows: await api('/api/patients') };
+    const load = () => {
+      const q = $('#q').value.trim().toLowerCase();
+      const rows = PATIENTS.rows.filter(p => !q || p.name.toLowerCase().includes(q) || p.code.toLowerCase().includes(q) || String(p.data.guardian || '').toLowerCase().includes(q) || String(p.data.phone || '').includes(q));
       $('#list').innerHTML = rows.length ? `<div class="table-wrap"><table><thead><tr><th>${t('name')}</th><th>${t('id')}</th><th>${t('seizureTypes')}</th><th>${t('last30')}</th><th>${t('lastEvent')}</th><th>${t('status')}</th></tr></thead><tbody>
         ${rows.map(p => `<tr class="click" data-href="#/patient/${p.id}"><td><b>${esc(p.name)}</b>${p.data.guardian ? `<div class="muted small">${esc(p.data.guardian)}</div>` : ''}</td><td class="n ltr">${esc(p.code)}</td>
           <td>${(p.data.seizures || []).map(s => `<span class="tag t">${esc(s.typeId || '?')}</span>`).join('')}</td>
@@ -211,7 +218,8 @@
           <td>${p.active ? `<span class="tag r">${t('active')}</span>` : `<span class="tag">${t('inactive')}</span>`}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty">${t('noPatients')}</div>`;
       bindRowLinks();
     };
-    $('#q').oninput = () => { clearTimeout(timer); timer = setTimeout(load, 220); };
+    $('#q').oninput = load;
+    $('#reload').onclick = () => { PATIENTS = null; patientsList(); };
     load();
   }
 
@@ -232,7 +240,7 @@
       e.preventDefault();
       const f = Object.fromEntries(new FormData(e.target)); const name = f.name; delete f.name;
       try {
-        const r = await api('/api/patients', { method: 'POST', body: { name, data: f } });
+        const r = await api('/api/patients', { method: 'POST', body: { name, data: f } }); PATIENTS = null;
         location.hash = `#/patient/${r.id}/access`;
         setTimeout(() => credentialsModal(r.code, r.password, r.id, true), 150);
       } catch (er) { toast(errMsg(er)); }
@@ -370,7 +378,7 @@
     };
     const save = async () => {
       try {
-        await api('/api/patients/' + p.id, { method: 'PUT', body: { name, data: d } });
+        await api('/api/patients/' + p.id, { method: 'PUT', body: { name, data: d } }); PATIENTS = null;
         dirty = false; $('#dirty-l').textContent = t('saved'); toast(t('saved'));
         p.name = name; $('.page-head h1').firstChild.textContent = name;
       } catch (er) { toast(errMsg(er)); }
@@ -480,7 +488,7 @@
     $('#reset').onclick = async () => { const r = await api(`/api/patients/${p.id}/reset-password`, { method: 'POST' }); credentialsModal(p.code, r.password, p.id, false); };
     $('#print').onclick = () => printCard(p.id);
     const rg = $('#regen'); if (rg) rg.onclick = async () => { if (!confirm(t('regenConfirm'))) return; await api(`/api/patients/${p.id}/regen-qr`, { method: 'POST' }); patientPage(p.id, 'access'); };
-    const act = $('#act'); if (act) act.onclick = async () => { await api('/api/patients/' + p.id, { method: 'PUT', body: { active: !p.active } }); patientPage(p.id, 'access'); };
+    const act = $('#act'); if (act) act.onclick = async () => { await api('/api/patients/' + p.id, { method: 'PUT', body: { active: !p.active } }); PATIENTS = null; patientPage(p.id, 'access'); };
   }
   async function printCard(id, pw) {
     const p = await api('/api/patients/' + id);
@@ -507,7 +515,7 @@
   // ---------------- content & visibility ----------------
   async function contentPage() {
     setNav('content');
-    CAT = await api('/api/catalog');
+    if (!CAT) CAT = await api('/api/catalog');
     const editable = can('admin');
     let filter = store.get('lvlFilter', 'all');
     const draw = () => {
@@ -530,7 +538,7 @@
         try { await api('/api/catalog/visibility', { method: 'PUT', body: { [cb.dataset.vis]: cb.checked } }); CAT.items.find(i => i.id === cb.dataset.vis).visible = cb.checked; draw(); }
         catch (er) { cb.checked = !cb.checked; toast(errMsg(er)); }
       });
-      const bulk = async (fn) => { const body = {}; CAT.items.filter(i => CAT.categories.find(c => c.id === i.cat)?.family).forEach(i => (body[i.id] = fn(i))); await api('/api/catalog/visibility', { method: 'PUT', body }); contentPage(); };
+      const bulk = async (fn) => { const body = {}; CAT.items.filter(i => CAT.categories.find(c => c.id === i.cat)?.family).forEach(i => (body[i.id] = fn(i))); await api('/api/catalog/visibility', { method: 'PUT', body }); CAT = null; contentPage(); };
       const b1 = $('#basic'); if (b1) b1.onclick = () => bulk(i => i.lvl === 'basic');
       const b2 = $('#all'); if (b2) b2.onclick = () => bulk(() => true);
     };
@@ -602,6 +610,49 @@
     $$('[data-role]').forEach(s => s.onchange = async () => { try { await api('/api/staff/' + s.dataset.role, { method: 'PATCH', body: { role: s.value } }); toast(t('saved')); } catch (er) { toast(errMsg(er)); } });
     $$('[data-act]').forEach(b => b.onclick = async () => { const [id, a] = b.dataset.act.split('|'); await api('/api/staff/' + id, { method: 'PATCH', body: { active: a === '1' } }); staffPage(); });
     $$('[data-pw]').forEach(b => b.onclick = async () => { const pw = prompt(t('promptPw')); if (!pw) return; try { await api('/api/staff/' + b.dataset.pw, { method: 'PATCH', body: { password: pw } }); toast(t('saved')); } catch (er) { toast(errMsg(er)); } });
+  }
+
+  // ---------------- free-plan usage ----------------
+  async function usagePage(force) {
+    setNav('usage');
+    if (!can('admin')) return (main().innerHTML = `<div class="err">${t('forbidden')}</div>`);
+    main().innerHTML = head(t('usage'), '', `<button class="btn ghost" id="ref">${t('refresh')}</button>`) + `<div class="empty">…</div>`;
+    $('#ref').onclick = () => usagePage(true);
+    const u = await api('/api/usage');
+    const L = u.limits;
+    const pct = (v, lim) => Math.min(100, (v / lim) * 100);
+    const fmtP = (p) => (p < 0.1 && p > 0 ? '<0.1' : p.toFixed(p < 10 ? 1 : 0)) + '%';
+    const fmtB = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
+    const tone = (p) => p >= 85 ? 'var(--clay)' : p >= 60 ? 'var(--saffron)' : 'var(--tigris)';
+    const meter = (label, used, lim, fmt = fmtN) => {
+      const p = pct(used, lim);
+      return `<div class="meter"><div class="meter-top"><span>${label}</span><b style="color:${tone(p)}">${fmtP(p)}</b></div>
+        <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.toFixed(1)}" aria-label="${label}"><i style="width:${Math.max(p, 0.6)}%;background:${tone(p)}"></i></div>
+        <div class="meter-foot"><span><b>${fmt(used)}</b> ${t('used')} ${t('of')} ${fmt(lim)}</span><span>${fmt(Math.max(0, lim - used))} ${t('remaining')} · <b>${fmtP(100 - p)}</b></span></div></div>`;
+    };
+    if (!u.configured || u.error) {
+      main().querySelector('.empty').outerHTML = `<div class="note">${u.configured ? esc(u.error) : t('notConfigured')}</div>`;
+      return;
+    }
+    const left = Math.max(0, u.resetsAt - Date.now()), hh = Math.floor(left / 36e5), mm = Math.floor((left % 36e5) / 6e4);
+    const td = u.today || { requests: 0, rowsRead: 0, rowsWritten: 0 };
+    const cpuMeter = (label, v) => v == null ? '' : meter(label, +v.toFixed(2), L.cpuMs, (x) => (+x).toFixed(1) + ' ms');
+    const maxR = Math.max(1, ...u.history.map(h => h.rowsRead));
+    main().querySelector('.empty').outerHTML = `
+      <div class="note" style="margin-bottom:14px">${t('usageHint')}</div>
+      <p class="muted small" style="margin:-4px 0 14px">${t('resetsIn')} <b class="num">${hh}:${String(mm).padStart(2, '0')}</b> · ${fmtDT(u.fetchedAt)}</p>
+      <div class="grid g2">
+        <div class="panel stamp">${meter(t('uReads'), td.rowsRead, L.rowsRead)}</div>
+        <div class="panel stamp">${meter(t('uWrites'), td.rowsWritten, L.rowsWritten)}</div>
+        <div class="panel stamp">${meter(t('uRequests'), td.requests, L.requests)}</div>
+        <div class="panel stamp">${meter(t('uStorage'), u.storageBytes, L.storageBytes, fmtB)}</div>
+      </div>
+      ${u.cpuP50 != null ? `<div class="panel"><h2>${t('uCpu')} <span class="hint">${t('limitWord')} ${L.cpuMs} ms</span></h2><div class="grid g2">${cpuMeter(t('typical') + ' (p50)', u.cpuP50)}${cpuMeter(t('worst') + ' (p99)', u.cpuP99)}</div></div>` : ''}
+      <div class="panel"><h2>${t('last7')}</h2><div class="table-wrap"><table><thead><tr><th>${t('date')}</th><th>${t('uReads')}</th><th></th><th>${t('uWrites')}</th><th>${t('uRequests')}</th></tr></thead><tbody>
+        ${u.history.slice().reverse().map(h => `<tr><td class="num ltr">${h.date}</td><td class="n">${fmtN(h.rowsRead)} <span class="muted small">(${fmtP(pct(h.rowsRead, L.rowsRead))})</span></td>
+          <td style="width:30%"><div class="bar thin"><i style="width:${(h.rowsRead / maxR) * 100}%;background:var(--tigris)"></i></div></td>
+          <td class="n">${fmtN(h.rowsWritten)} <span class="muted small">(${fmtP(pct(h.rowsWritten, L.rowsWritten))})</span></td><td class="n">${fmtN(h.requests)} <span class="muted small">(${fmtP(pct(h.requests, L.requests))})</span></td></tr>`).join('')}
+      </tbody></table></div></div>`;
   }
 
   // ---------------- audit ----------------

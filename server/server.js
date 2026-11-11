@@ -327,6 +327,8 @@ app.get('/api/stats', staffAuth, (req, res) => {
       .map(r => ({ ...r, data: JSON.parse(r.data) }))
   });
 });
+// local server: no Cloudflare plan to measure
+app.get('/api/usage', staffAuth, atLeast('admin'), (req, res) => res.json({ configured: false, limits: { requests: 100000, rowsRead: 5000000, rowsWritten: 100000, storageBytes: 5e9, cpuMs: 10 } }));
 app.get('/api/audit', staffAuth, atLeast('admin'), (req, res) => {
   res.json(db.prepare('SELECT * FROM audit ORDER BY id DESC LIMIT 300').all());
 });
