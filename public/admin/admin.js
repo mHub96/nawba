@@ -50,6 +50,7 @@
     uRequests: ['API requests today', 'طلبات الـAPI اليوم'], uReads: ['Database rows read today', 'صفوف مقروءة من القاعدة اليوم'], uWrites: ['Database rows written today', 'صفوف مكتوبة في القاعدة اليوم'], uStorage: ['Database storage (all D1 databases)', 'مساحة قاعدة البيانات (كل قواعد D1)'], uCpu: ['CPU time per request (today)', 'وقت المعالج لكل طلب (اليوم)'],
     used: ['used', 'مستخدم'], remaining: ['remaining', 'متبقٍ'], of: ['of', 'من'], resetsIn: ['Daily limits reset in', 'تُصفَّر الحدود اليومية بعد'], last7: ['Last 7 days', 'آخر ٧ أيام'], date: ['Date', 'التاريخ'], refresh: ['Refresh', 'تحديث'],
     notConfigured: ['Usage statistics are not connected (CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID secrets missing on the Worker).', 'إحصاءات الاستهلاك غير مربوطة (المفاتيح CF_ANALYTICS_TOKEN / CF_ACCOUNT_ID غير موجودة في الـWorker).'], typical: ['typical', 'المعتاد'], worst: ['slowest 1%', 'أبطأ ١٪'], limitWord: ['limit', 'الحد'],
+    checkUpdate: ['Check for updates', 'فحص التحديثات'], updateAvail: ['Update available — click to update', 'تحديث جديد متوفر — اضغط للتحديث'], upToDate: ['You have the latest version ✓', 'لديك أحدث إصدار ✓'], updating: ['Updating…', 'جارٍ التحديث…'], checking: ['Checking…', 'جارٍ الفحص…'], offlineMsg: ['No internet connection.', 'لا يوجد اتصال بالإنترنت.'], versionWord: ['Version', 'الإصدار'],
     theme: ['Theme', 'المظهر'], error: ['Something went wrong.', 'حدث خطأ.'], forbidden: ['You do not have permission for this.', 'ليست لديك صلاحية لهذا.'], minutes: ['min', 'د'], cancel: ['Cancel', 'إلغاء'], close: ['Close', 'إغلاق'], none: ['—', '—']
   };
   let lang = store.get('lang', 'ar');
@@ -94,8 +95,9 @@
     document.body.innerHTML = `<div class="auth"><div class="box">
       <div class="brand">${I.logo}<div><b>${t('appName')}</b><div class="muted small">${t('console')}</div></div></div>
       ${inner}
-      <div style="display:flex;justify-content:space-between;margin-top:16px" class="small"><a href="#" id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</a><a href="../app/">/app</a></div>
+      <div style="display:flex;justify-content:space-between;margin-top:16px" class="small"><a href="#" id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</a><a href="#" id="upd">⟳ ${t('checkUpdate')}</a><a href="../app/">/app</a></div>
     </div></div>`;
+    $('#upd').onclick = (e) => { e.preventDefault(); checkUpdate(e.currentTarget); };
     $('#lang-sw').onclick = (e) => { e.preventDefault(); lang = lang === 'en' ? 'ar' : 'en'; store.set('lang', lang); boot(); };
   }
   function setupScreen() {
@@ -141,13 +143,16 @@
           <div class="chev"></div>
           <nav class="nav">${NAV.filter(n => can(n[3])).map(n => `<a href="${n[1]}" data-nav="${n[0]}">${n[2]}<span>${t(n[0])}</span></a>`).join('')}</nav>
           <div class="me"><b>${esc(ME.name)}</b><span class="role-tag">${t(ME.role)}</span>
-            <div class="row"><button id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</button><button id="theme-sw" aria-label="${t('theme')}">◐</button><button id="out">${t('logout')}</button></div></div>
+            <div class="row"><button id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</button><button id="theme-sw" aria-label="${t('theme')}">◐</button><button id="out">${t('logout')}</button></div>
+            <button id="upd" class="upd ${UPDATE_AVAILABLE ? 'avail' : ''}">⟳ ${UPDATE_AVAILABLE ? t('updateAvail') : t('checkUpdate')}</button>
+            <div class="ver">${t('versionWord')} <span class="ltr num">${esc(CUR_VERSION.slice(0, 7))}</span></div></div>
         </aside>
         <main id="main"></main>
       </div>`;
     $('#burger').onclick = () => $('#rail').classList.toggle('open');
     $('#lang-sw').onclick = async () => { lang = lang === 'en' ? 'ar' : 'en'; store.set('lang', lang); store.set('langChosen', true); api('/api/staff/me', { method: 'POST', body: { lang } }).catch(() => {}); applyLang(); shell(); route(); };
     $('#theme-sw').onclick = () => { const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); setTheme(cur === 'dark' ? 'light' : 'dark'); };
+    $('#upd').onclick = () => checkUpdate($('#upd'));
     $('#out').onclick = async () => { await api('/api/staff/logout', { method: 'POST' }).catch(() => {}); token = ''; store.set('token', ''); boot(); };
   }
   const main = () => $('#main');
@@ -612,6 +617,29 @@
     $$('[data-pw]').forEach(b => b.onclick = async () => { const pw = prompt(t('promptPw')); if (!pw) return; try { await api('/api/staff/' + b.dataset.pw, { method: 'PATCH', body: { password: pw } }); toast(t('saved')); } catch (er) { toast(errMsg(er)); } });
   }
 
+  // ---------------- check for update ----------------
+  const CUR_VERSION = window.NAWBA_VERSION || 'dev';
+  let UPDATE_AVAILABLE = false;
+  const latestVersion = async () => (await (await fetch(new URL('../version.json', location.href) + '?t=' + Date.now(), { cache: 'no-store' })).json()).version;
+  async function checkUpdate(btn) {
+    if (!navigator.onLine) return toast(t('offlineMsg'));
+    btn.disabled = true; btn.textContent = t('checking');
+    let latest;
+    try { latest = await latestVersion(); } catch { btn.disabled = false; btn.textContent = '⟳ ' + t('checkUpdate'); return toast(t('error')); }
+    if (latest === CUR_VERSION) { UPDATE_AVAILABLE = false; btn.disabled = false; btn.classList.remove('avail'); btn.textContent = '⟳ ' + t('checkUpdate'); return toast(t('upToDate')); }
+    if (dirty && !confirm(t('unsaved') + ' — ' + (lang === 'en' ? 'update anyway?' : 'التحديث على أي حال؟'))) { btn.disabled = false; return; }
+    btn.textContent = t('updating');
+    // refresh the browser's copies of every panel file, then reload
+    const files = ['./', 'index.html', 'admin.js', 'admin.css', '../config.js', '../shared/icons.js', '../shared/qrcode.js', '../fonts/fonts.css'];
+    await Promise.all(files.map(f => fetch(new URL(f, location.href), { cache: 'reload' }).catch(() => {})));
+    dirty = false;
+    location.reload();
+  }
+  async function silentUpdateCheck() {
+    if (!navigator.onLine || CUR_VERSION === 'dev') return;
+    try { if ((await latestVersion()) !== CUR_VERSION) { UPDATE_AVAILABLE = true; const b = $('#upd'); if (b) { b.classList.add('avail'); b.textContent = '⟳ ' + t('updateAvail'); } } } catch {}
+  }
+
   // ---------------- free-plan usage ----------------
   async function usagePage(force) {
     setNav('usage');
@@ -692,6 +720,7 @@
       SETTINGS = await api('/api/settings');
     } catch { return; }
     shell(); route();
+    setTimeout(silentUpdateCheck, 3000);
   }
   boot();
 })();

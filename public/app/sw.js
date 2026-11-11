@@ -1,6 +1,7 @@
 // Offline-first service worker: the crisis flow, its pictures and every narration clip must work with no signal.
 // All paths are relative to this file, so the app works at a domain root or under a sub-path (GitHub Pages).
-const VERSION = 'nawba-v2';
+// The deploy replaces "nawba-dev" with the commit id, so every release changes this file and phones pick it up.
+const VERSION = 'nawba-dev';
 const R = (p) => new URL(p, self.location.href).href;
 const SHELL = [
   './', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
@@ -14,7 +15,8 @@ const APP_ROOT = R('./');
 self.addEventListener('install', (e) => {
   e.waitUntil((async () => {
     const c = await caches.open(VERSION);
-    await c.addAll(SHELL);
+    // cache: 'reload' bypasses the browser's HTTP cache so an update never re-caches yesterday's files
+    await c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })));
     try {
       const idx = await (await fetch(R('../audio/index.json'), { cache: 'no-cache' })).json();
       const urls = idx.files.map(f => R(`../audio/${f}.mp3?v=${idx.hashes[f]}`));

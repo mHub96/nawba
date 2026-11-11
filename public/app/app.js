@@ -151,7 +151,9 @@
         <label class="field"><span>رقم المريض</span><input name="code" autocomplete="username" inputmode="text" placeholder="NW-12345" required></label>
         <label class="field"><span>الرمز السري</span><input name="password" type="password" autocomplete="current-password" inputmode="numeric" required></label>
         <button class="btn" type="submit">دخول</button>
-      </form>`);
+      </form>
+      ${updateButton()}`);
+    bindUpdate();
     document.getElementById('login').onsubmit = async (e) => {
       e.preventDefault();
       const f = new FormData(e.target);
@@ -187,10 +189,52 @@
       </div>
       ${ME.features.ambulance ? `<a class="btn ghost" style="margin-top:14px;text-decoration:none" href="tel:${esc(ME.features.emergencyNumber)}">${I.phone} الإسعاف ${arNum(ME.features.emergencyNumber)}</a>` : ''}
       <div class="spacer"></div>
-      <button class="btn ghost" style="margin-top:22px;min-height:48px;font-size:15px" id="logout">${I.logout} خروج من الحساب</button>
+      ${updateButton()}
+      <button class="btn ghost" style="margin-top:10px;min-height:48px;font-size:15px" id="logout">${I.logout} خروج من الحساب</button>
     `);
+    bindUpdate();
     document.getElementById('go-flow').onclick = () => go('#flow');
     document.getElementById('logout').onclick = () => { if (confirm('متأكد تريد تطلع؟ راح تحتاج رمز QR أو الرمز السري حتى ترجع.')) logout(); };
+  }
+
+  // ---------------- check for update ----------------
+  // Every deploy writes version.json; config.js (cached with the app) carries the version this phone runs.
+  const CUR_VERSION = window.NAWBA_VERSION || 'dev';
+  let updateAvailable = false;
+  async function latestVersion() {
+    const r = await fetch(`../version.json?t=${Date.now()}`, { cache: 'no-store' });
+    return (await r.json()).version;
+  }
+  function updateButton() {
+    return `<button class="btn ghost" id="check-update" style="margin-top:22px;min-height:48px;font-size:15px${updateAvailable ? ';border-color:var(--saffron);background:var(--saffron-soft)' : ''}">
+      ${I.clock} ${updateAvailable ? 'اكو تحديث جديد — اضغط للتحديث' : 'فحص التحديثات'}</button>
+      <p class="label" style="text-align:center;margin:4px 0 0">الإصدار <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>`;
+  }
+  function bindUpdate() { const b = document.getElementById('check-update'); if (b) b.onclick = () => checkUpdate(b); }
+  async function checkUpdate(btn) {
+    if (!navigator.onLine) return toast('ما اكو إنترنت هسه. جرّب لمن يرجع الإنترنت.');
+    btn.disabled = true; btn.textContent = '…دنفحص';
+    let latest;
+    try { latest = await latestVersion(); } catch { route(); return toast('ما كدرنا نفحص. جرّب بعد شوية.'); }
+    if (latest === CUR_VERSION) { updateAvailable = false; route(); return toast('عندك آخر نسخة ✓'); }
+    toast('…دنحدّث التطبيق');
+    try {
+      const reg = navigator.serviceWorker && await navigator.serviceWorker.getRegistration();
+      if (reg) {
+        await reg.update();
+        await new Promise((res) => {
+          const done = () => { clearTimeout(tm); res(); };
+          const tm = setTimeout(res, 20000);
+          navigator.serviceWorker.addEventListener('controllerchange', done, { once: true });
+          if (!reg.installing && !reg.waiting) done();
+        });
+      }
+    } catch {}
+    location.reload();
+  }
+  async function silentUpdateCheck() {
+    if (!navigator.onLine || CUR_VERSION === 'dev') return;
+    try { if ((await latestVersion()) !== CUR_VERSION) { updateAvailable = true; if ((location.hash || '#home') === '#home' && !FLOW) route(); } } catch {}
   }
 
   // ---------------- profile ----------------
@@ -578,6 +622,7 @@
     if (token && navigator.onLine) refreshMe().then(() => { if (!FLOW && (location.hash === '#home' || !location.hash)) route(); });
     flushOutbox();
     route();
+    setTimeout(silentUpdateCheck, 3000);
   }
   boot();
 })();

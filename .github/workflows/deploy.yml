@@ -67,7 +67,11 @@ jobs:
           mkdir -p _site/content
           cp -r public/* _site/
           cp content/narration.json _site/content/
-          printf "window.NAWBA_API = '%s';\n" "$API_URL" > _site/config.js
+          VER="${GITHUB_SHA::12}"
+          printf "window.NAWBA_API = '%s';\nwindow.NAWBA_VERSION = '%s';\n" "$API_URL" "$VER" > _site/config.js
+          printf '{ "version": "%s", "built": "%s" }\n' "$VER" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > _site/version.json
+          sed -i "s/nawba-dev/nawba-$VER/" _site/app/sw.js
+          grep -q "nawba-$VER" _site/app/sw.js
           printf '<!doctype html><meta charset="utf-8"><meta http-equiv="refresh" content="0;url=app/"><a href="app/">نوبة</a>\n' > _site/index.html
           touch _site/.nojekyll
           echo "API: $API_URL"

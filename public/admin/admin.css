@@ -55,6 +55,9 @@ svg { flex: none; }
 .rail .me b { display: block; font-size: 14px; }
 .role-tag { display: inline-block; font-size: 11px; letter-spacing: .04em; text-transform: uppercase; border: 1px solid currentColor; border-radius: 6px; padding: 0 6px; color: var(--saffron); }
 .rail .me .row { display: flex; gap: 6px; margin-top: 10px; }
+.rail .me .upd { display: block; width: 100%; margin-top: 8px; text-align: center; }
+.rail .me .upd.avail { background: var(--saffron); color: #15232a; border-color: var(--saffron); font-weight: 500; }
+.rail .me .ver { margin-top: 6px; font-size: 11.5px; color: var(--rail-muted); text-align: center; }
 .rail .me button { flex: 1; background: rgba(233, 226, 212, .08); border: 1px solid rgba(233, 226, 212, .18); color: var(--rail-ink); border-radius: 8px; padding: 6px; font-size: 13px; }
 
 main { padding: 26px clamp(16px, 3vw, 40px) 60px; min-width: 0; }
