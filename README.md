@@ -16,6 +16,22 @@ An offline-first progressive web app that walks families through an epileptic se
 
 Every push to `main` deploys both the API and the site through `.github/workflows/deploy.yml`. Deployment needs two repository secrets, `CLOUDFLARE_API_TOKEN` and `CLOUDFLARE_ACCOUNT_ID`.
 
+## Free-plan limits and the Usage page
+
+The Cloudflare Workers Free plan allows, per day (reset 00:00 UTC):
+- 100,000 API requests;
+- 5 million database rows read;
+- 100,000 rows written.
+
+It also allows 5 GB of database storage and 10 ms of CPU per request. Since Sept 2026, D1 refuses queries for the rest of the day once a daily limit is reached.
+
+How the API keeps usage low:
+- It caches settings, sign-in sessions and dashboard statistics in memory for 60 seconds.
+- It uses indexed, aggregated queries.
+- Patient search runs in the browser.
+
+Admins and the Owner see live usage under **Usage** in the staff panel: % used and % remaining for each limit, CPU time, and the last 7 days. To connect it, create a **read-only** Cloudflare API token with *Account Analytics: Read* and *D1: Read*, then add it as the repository secret CF_ANALYTICS_TOKEN. The next deploy installs it on the Worker.
+
 ## Run locally (optional)
 
 ```bash

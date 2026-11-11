@@ -20,7 +20,10 @@ const unb64u = (s) => Uint8Array.from(atob(s.replace(/-/g, '+').replace(/_/g, '/
 const randToken = (n = 32) => b64u(crypto.getRandomValues(new Uint8Array(n)));
 const randInt = (min, max) => min + (crypto.getRandomValues(new Uint32Array(1))[0] % (max - min));
 async function sha256(s) { return b64u(await crypto.subtle.digest('SHA-256', enc.encode(s))); }
-const PBKDF2_ITER = 50000;
+// Sized for the Workers Free plan's 10 ms CPU budget per request (≈5 ms per check). Brute force is limited
+// separately by the 10-failures/15-min lockout. Hashes made with another count are upgraded at next login.
+const PBKDF2_ITER = 20000;
+const needsRehash = (stored) => String(stored || '').split('$')[1] !== String(PBKDF2_ITER);
 async function pbkdf2(pw, salt, iter) {
   const key = await crypto.subtle.importKey('raw', enc.encode(String(pw)), 'PBKDF2', false, ['deriveBits']);
   return new Uint8Array(await crypto.subtle.deriveBits({ name: 'PBKDF2', hash: 'SHA-256', salt, iterations: iter }, key, 256));
@@ -177,6 +180,7 @@ on('POST', '/api/staff/login', async (c) => {
   const u = await one(c.env, 'SELECT * FROM staff WHERE username = ? COLLATE NOCASE', String(username || '').trim());
   if (!u || !u.active || !(await checkPass(password || '', u.pass))) { await fail(c.env, key); throw new HttpError(401, 'bad_login'); }
   await clearFail(c.env, key);
+  if (needsRehash(u.pass)) await run(c.env, 'UPDATE staff SET pass = ? WHERE id = ?', await hashPass(password), u.id);
   if (Math.random() < 0.05) await run(c.env, 'DELETE FROM sessions WHERE expires < ?', Date.now());
   const token = await createSession(c.env, 'staff', u.id, 12 * 3600e3);
   await audit(c.env, `${u.role}:${u.username}`, 'staff.login', u.id);
@@ -196,6 +200,7 @@ on('POST', '/api/patient/login', async (c) => {
     if (await throttled(c.env, key)) throw new HttpError(429, 'throttled');
     p = await one(c.env, 'SELECT * FROM patients WHERE code = ?', cd);
     if (!p || !(await checkPass(password || '', p.pass))) { await fail(c.env, key); throw new HttpError(401, 'bad_login'); }
+    if (needsRehash(p.pass)) await run(c.env, 'UPDATE patients SET pass = ? WHERE id = ?', await hashPass(password), p.id);
   }
   if (!p.active) throw new HttpError(403, 'inactive');
   const token = await createSession(c.env, 'patient', p.id, 365 * 24 * 3600e3);
