@@ -12,3 +12,5 @@ CLAUDE.local.md
 .env
 .elevenlabs-key
 voice-samples/
+__pycache__/
+*.pyc
