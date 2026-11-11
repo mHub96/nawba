@@ -47,8 +47,12 @@
 } }
 
 * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
-html, body { margin: 0; min-height: 100%; overflow-x: hidden; }
-body { font-family: var(--text); background: var(--base); color: var(--ink); font-size: 18px; line-height: 1.75; -webkit-font-smoothing: antialiased; overscroll-behavior-y: none; }
+button, a, .chip, .row { touch-action: manipulation; }
+/* The page itself scrolls (no inner scroll box). "clip" stops sideways wobble without creating a scroll container,
+   so a swipe anywhere — including on buttons — always moves the page. */
+html { margin: 0; min-height: 100%; overflow-x: clip; }
+body { margin: 0; min-height: 100%; }
+body { font-family: var(--text); background: var(--base); color: var(--ink); font-size: 18px; line-height: 1.75; -webkit-font-smoothing: antialiased; }
 button, input, textarea { font: inherit; color: inherit; }
 button { cursor: pointer; border: 0; background: none; padding: 0; }
 a { color: inherit; }
@@ -342,3 +346,20 @@ body.flow #infobar, body.flow #tabbar { display: none; }
 
 /* old per-screen header no longer used */
 .topbar { display: none; }
+
+/* ---- the emergency tile is alive: heartbeat glow, a brainwave drawing across it, a beating badge ---- */
+.nawba-now { animation: tile-beat 2.4s ease-in-out infinite; }
+@keyframes tile-beat {
+  0%, 100% { box-shadow: 0 0 0 0 color-mix(in srgb, var(--alarm) 45%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--alarm) 70%, transparent); }
+  12% { box-shadow: 0 0 0 10px color-mix(in srgb, var(--alarm) 22%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--alarm) 70%, transparent); }
+  24% { box-shadow: 0 0 0 4px color-mix(in srgb, var(--alarm) 30%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--alarm) 70%, transparent); }
+  40% { box-shadow: 0 0 0 22px color-mix(in srgb, var(--alarm) 0%, transparent), 0 18px 40px -18px color-mix(in srgb, var(--alarm) 70%, transparent); }
+}
+.nawba-now .trace { position: absolute; z-index: -1; inset: 28% 0 auto 0; width: 100%; height: 34%; overflow: visible; }
+.nawba-now .trace path { fill: none; stroke: #fff; stroke-width: 3.2; stroke-linecap: round; stroke-linejoin: round; opacity: .55;
+  stroke-dasharray: 520 900; stroke-dashoffset: 520; animation: trace-run 2.4s linear infinite; filter: drop-shadow(0 0 6px rgba(255,255,255,.7)); vector-effect: non-scaling-stroke; }
+@keyframes trace-run { from { stroke-dashoffset: 520; } to { stroke-dashoffset: -900; } }
+.nawba-now .bolt { animation: bolt-beat 2.4s ease-in-out infinite; transform-origin: center; }
+@keyframes bolt-beat { 0%, 30%, 100% { transform: scale(1); } 10% { transform: scale(1.14); } 20% { transform: scale(1.05); } }
+.nawba-now:active { animation-play-state: paused; }
+@media (prefers-reduced-motion: reduce) { .nawba-now, .nawba-now .bolt, .nawba-now .trace path { animation: none !important; } .nawba-now .trace path { stroke-dashoffset: 0; stroke-dasharray: none; opacity: .35; } }

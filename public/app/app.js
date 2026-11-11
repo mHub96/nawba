@@ -196,6 +196,7 @@
     const pending = LS.get('outbox', []).length;
     render(`
       <button class="nawba-now" id="go-flow" aria-label="نوبة الآن، ابدأ الإرشاد">
+        <svg class="trace" viewBox="0 0 400 120" preserveAspectRatio="none" aria-hidden="true"><path d="M0 70 H70 L88 70 L100 40 L114 98 L128 18 L142 82 L152 70 H230 L246 70 L256 52 L268 90 L280 30 L292 76 L300 70 H400"/></svg>
         <span class="bolt">${I.bolt}</span>
         <b>نوبة الآن</b><span>اضغط هنا وگت النوبة</span>
       </button>
