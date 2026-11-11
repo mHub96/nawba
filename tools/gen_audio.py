@@ -96,7 +96,7 @@ def eleven_tts(text, voice_id, model, key, path):
 
 async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
     OUT.mkdir(parents=True, exist_ok=True)
-    key = openai_key() if engine == "openai" else eleven_key() if engine == "elevenlabs" else None
+    api_key = openai_key() if engine == "openai" else eleven_key() if engine == "elevenlabs" else None
     tag = f"{engine}:{model}:{voice}" if engine in ("openai", "elevenlabs") else voice
     idx_path = OUT / "index.json"
     old = json.loads(idx_path.read_text(encoding="utf-8")) if idx_path.exists() else {}
@@ -110,22 +110,23 @@ async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
         elif only and key not in only:
             hashes[key] = old_hashes.get(key, h)   # keep untouched clips as they are
     print(f"{len(hashes)} clips, {len(todo)} to generate with {tag}")
-    sem = asyncio.Semaphore(4)
+    sem = asyncio.Semaphore(2 if engine == "elevenlabs" else 4)   # ElevenLabs plans cap concurrent requests
 
     async def one(k, text):
         async with sem:
-            for attempt in range(3):
+            for attempt in range(5):
                 try:
                     if engine in ("openai", "elevenlabs"):
                         fn = openai_tts if engine == "openai" else eleven_tts
-                        await asyncio.to_thread(fn, text, voice, model, key, OUT / f"{k}.mp3")
+                        await asyncio.to_thread(fn, text, voice, model, api_key, OUT / f"{k}.mp3")
                         print("  ok", k)
                         return
                     await edge_tts.Communicate(text, voice, rate=rate).save(str(OUT / f"{k}.mp3"))
                     print("  ok", k)
                     return
                 except Exception as e:  # network hiccup / rate limit: retry
-                    print("  retry", k, e, file=sys.stderr)
+                    detail = e.read()[:200].decode("utf-8", "replace") if hasattr(e, "read") else ""
+                    print("  retry", k, e, detail, file=sys.stderr)
                     await asyncio.sleep(3 * (attempt + 1))
             raise SystemExit(f"failed: {k}")
 

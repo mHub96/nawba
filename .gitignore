@@ -11,3 +11,4 @@ CLAUDE.local.md
 .openai-key
 .env
 .elevenlabs-key
+voice-samples/
