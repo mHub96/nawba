@@ -300,7 +300,7 @@
         ${NawbaTheme.MODES.map(m => `<button class="row ${NawbaTheme.get() === m ? 'on' : ''}" data-m="${m}"><span class="ic">${I[THEME_ICON[m]]}</span>
           <span class="tx"><b>${esc(NawbaTheme.LABELS[m].ar)}</b><small>${THEME_HINT[m]}</small></span>${NawbaTheme.get() === m ? `<span class="go">${I.check}</span>` : ''}</button>`).join('')}
         </div></div>`;
-      el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { NawbaTheme.set(b.dataset.m); draw(); setTimeout(() => { close(); home(); }, 250); });
+      el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { NawbaTheme.set(b.dataset.m); draw(); setTimeout(() => { close(); route(); }, 250); });
     };
     el.onclick = (e) => { if (e.target === el) close(); };
     draw(); document.body.appendChild(el);
