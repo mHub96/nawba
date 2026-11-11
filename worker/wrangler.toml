@@ -13,7 +13,7 @@ ALLOWED_ORIGINS = "https://mhub96.github.io,http://localhost:8080"
 [[d1_databases]]
 binding = "DB"
 database_name = "nawba"
-database_id = "dc57f923-a4e4-4908-b267-1e8eec6f9228"
+database_id = "f3157af2-63ae-4364-a027-a22f8c7529fa"
 migrations_dir = "migrations"
 
 # Seizure-video storage (optional). Enable R2 in the Cloudflare dashboard, create a bucket
