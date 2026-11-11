@@ -9,7 +9,7 @@
 
   window.ICONS = {
     // ---- brand: an EEG spike train settling into a calm flat line ----
-    logo: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="2" y="2" width="44" height="44" rx="13" fill="var(--tigris)"/><path d="M8 25h7l3-9 4 18 4-24 3 15h11" fill="none" stroke="var(--on-tigris)" stroke-width="3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+    logo: `<svg viewBox="0 0 48 48" aria-hidden="true"><rect x="1" y="1" width="46" height="46" rx="14" fill="#1d3fa0"/><path d="M1 17h46M1 31h46M17 1v16M33 17v14M17 31v16" stroke="#fff" stroke-opacity=".08" stroke-width="1.2"/><path d="M7 25h8l3-9 4 18 4-24 3 15h12" fill="none" stroke="#e8b13a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 
     // ---- UI ----
     speaker: ui('<path d="M4 9v6h4l5 4V5L8 9H4z"/><path d="M16.5 8.5a5 5 0 0 1 0 7M19 6a8.5 8.5 0 0 1 0 12"/>'),

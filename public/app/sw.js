@@ -5,10 +5,11 @@ const VERSION = 'nawba-dev';
 const R = (p) => new URL(p, self.location.href).href;
 const SHELL = [
   './', 'index.html', 'app.css', 'app.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png',
-  '../config.js', '../shared/icons.js', '../content/narration.json', '../img/guide.jpg', '../audio/index.json',
+  '../config.js', '../shared/icons.js', '../shared/theme.js', '../content/narration.json', '../img/guide.jpg', '../audio/index.json',
   '../fonts/fonts.css',
-  '../fonts/readex-pro-arabic-400-normal.woff2', '../fonts/readex-pro-arabic-500-normal.woff2', '../fonts/readex-pro-arabic-700-normal.woff2',
-  '../fonts/readex-pro-latin-400-normal.woff2', '../fonts/readex-pro-latin-500-normal.woff2', '../fonts/readex-pro-latin-700-normal.woff2'
+  '../fonts/reem-kufi-arabic-500-normal.woff2', '../fonts/reem-kufi-arabic-700-normal.woff2', '../fonts/reem-kufi-latin-700-normal.woff2',
+  '../fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2', '../fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2', '../fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2',
+  '../fonts/ibm-plex-sans-arabic-latin-400-normal.woff2', '../fonts/ibm-plex-sans-arabic-latin-600-normal.woff2'
 ].map(R);
 const APP_ROOT = R('./');
 

@@ -68,12 +68,19 @@ npm start              # http://localhost:8080
 
 ## Voice narration
 
-All 186 clips are pre-generated MP3s in `public/audio/`, and the app caches them for offline use. After you edit any text in `content/`, regenerate the audio:
+All 186 clips are MP3 files in `public/audio/`. Phones download every clip with the app, so narration works offline. After a deploy, the "Check for updates" button fetches any changed clips.
+
+Regenerate the clips after editing any text in `content/` (only lines whose text changed are regenerated):
 
 ```bash
 pip install edge-tts
-npm run audio          # only the changed lines are regenerated
+npm run audio                                   # free: Microsoft Iraqi voice (Rana; --voice ar-IQ-BasselNeural for male)
+python tools/gen_audio.py --engine openai       # most natural: OpenAI gpt-4o-mini-tts, instructed to speak Baghdadi Iraqi Arabic
+python tools/gen_audio.py --engine openai --only c_calm c_side item_R_long   # try a few clips first
 ```
 
-- The default voice is Microsoft's neural Iraqi voice `ar-IQ-RanaNeural` (female). For the male voice, use `--voice ar-IQ-BasselNeural`.
-- `edge-tts` uses Microsoft Edge's read-aloud service. For a licensed production setup, the same voices are available through Azure AI Speech.
+The OpenAI engine needs an API key. Set it in the environment variable `OPENAI_API_KEY`, or put it in a one-line `.openai-key` file in the project root. That file is git-ignored, so it is never uploaded.
+
+## Appearance
+
+There are five modes: Automatic, Day, Midday, Evening and Night. Automatic follows the clock: Day from 05:30, Midday from 11:00, Evening from 16:00 and Night from 19:30. Families choose a mode under **مظهر التطبيق** on the home screen. Staff use the ◐ button or **My account**.

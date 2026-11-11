@@ -137,13 +137,14 @@
   }
   function loginScreen(err = '') {
     render(`
-      <div class="chevrons"></div>
-      <div style="text-align:center;margin:28px 0 22px">
-        <div class="brand" style="justify-content:center"><span class="brand-mark">${I.logo}</span><span class="wordmark">نوبة</span></div>
-        <p class="label" style="margin-top:6px">دليل العائلة وقت نوبة الصرع</p>
+      <div style="margin:36px 0 26px">
+        <span class="brand-mark" style="display:block;width:64px;height:64px;margin-bottom:16px">${I.logo}</span>
+        <div class="wordmark" style="font-size:52px">نوبة</div>
+        <p style="margin:6px 0 0;color:var(--muted)">دليل العائلة وقت نوبة الصرع</p>
       </div>
-      <div class="card">
-        <p style="margin:0 0 6px"><b>أسهل طريقة:</b> افتح كاميرا الموبايل ووجّهها على رمز QR اللي انطاك ياه المركز.</p>
+      <div class="card" style="display:flex;gap:14px;align-items:center;background:var(--lapis-soft);border-color:transparent">
+        <span class="row" style="padding:0;min-height:0;width:auto"><span class="ic" style="background:var(--lapis);color:var(--lapis-ink)">${I.camera}</span></span>
+        <p style="margin:0;line-height:1.6">أسهل طريقة: افتح كاميرا الموبايل ووجّهها على رمز QR اللي انطاك ياه المركز.</p>
       </div>
       <p class="section-title">أو ادخل الرقم والرمز السري</p>
       ${err ? `<div class="error">${esc(err)}</div>` : ''}
@@ -176,25 +177,48 @@
         <h1>${esc(p.name)}<small>${esc(ME.centerName?.ar || '')}</small></h1>
         ${voiceBtn()}
       </div>
-      <div class="chevrons clay" style="opacity:.25"></div>
-      <button class="nawba-now" id="go-flow" aria-label="نوبة الآن — ابدأ الإرشاد">
-        <div>${I.bolt}<b>نوبة الآن</b><span>اضغط هنا وقت النوبة</span></div>
+      <button class="nawba-now" id="go-flow" aria-label="نوبة الآن، ابدأ الإرشاد">
+        <span class="bolt">${I.bolt}</span>
+        <b>نوبة الآن</b><span>اضغط هنا وقت النوبة</span>
       </button>
-      <p class="hint">التطبيق راح يحسب الوقت ويحجي وياك خطوة بخطوة</p>
-      <div class="tiles">
-        <button class="tile" data-go="#profile">${I.user}<div><b>ملف المريض</b><br><small>النوبات، الأدوية، خطة الإسعاف</small></div></button>
-        <button class="tile" data-go="#learn">${I.book}<div><b>تعلّم</b><br><small>${arNum(ME.edu.length)} دروس مفتوحة</small></div></button>
-        <button class="tile" data-go="#log">${I.plus}<div><b>سجّل نوبة صارت</b><br><small>نوبة خلصت قبل شوية</small></div></button>
-        <button class="tile" data-go="#history">${I.list}<div><b>سجل النوبات</b><br><small>${pending ? arNum(pending) + ' تنتظر الإرسال' : 'كل النوبات المسجلة'}</small></div></button>
+      <p class="hint">التطبيق يحسب الوقت ويحجي وياك خطوة بخطوة.</p>
+      <div class="list">
+        <button class="row" data-go="#profile"><span class="ic">${I.user}</span><span class="tx"><b>ملف المريض</b><small>النوبات والأدوية وخطة الإسعاف</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#log"><span class="ic">${I.plus}</span><span class="tx"><b>سجّل نوبة صارت</b><small>نوبة خلصت قبل شوية</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#history"><span class="ic">${I.list}</span><span class="tx"><b>سجل النوبات</b><small>${pending ? `<span class="badge">${arNum(pending)} تنتظر الإنترنت</span>` : 'كل النوبات المسجلة'}</small></span><span class="go">${I.next}</span></button>
+        <button class="row" data-go="#learn"><span class="ic">${I.book}</span><span class="tx"><b>تعلّم</b><small>${arNum(ME.edu.length)} دروس مفتوحة</small></span><span class="go">${I.next}</span></button>
+        ${ME.features.ambulance ? `<a class="row" href="tel:${esc(ME.features.emergencyNumber)}"><span class="ic alarm">${I.phone}</span><span class="tx"><b>اتصل بالإسعاف</b><small class="num">${arNum(ME.features.emergencyNumber)}</small></span></a>` : ''}
       </div>
-      ${ME.features.ambulance ? `<a class="btn ghost" style="margin-top:14px;text-decoration:none" href="tel:${esc(ME.features.emergencyNumber)}">${I.phone} الإسعاف ${arNum(ME.features.emergencyNumber)}</a>` : ''}
-      <div class="spacer"></div>
-      ${updateButton()}
-      <button class="btn ghost" style="margin-top:10px;min-height:48px;font-size:15px" id="logout">${I.logout} خروج من الحساب</button>
+      <div class="spacer" style="min-height:14px"></div>
+      <div class="list">
+        <button class="row" id="theme-pick"><span class="ic">${I.sun}</span><span class="tx"><b>مظهر التطبيق</b><small>${esc(NawbaTheme.LABELS[NawbaTheme.get()].ar)}</small></span><span class="go">${I.next}</span></button>
+        ${updateButton(true)}
+        <button class="row" id="logout"><span class="ic" style="background:var(--sunk);color:var(--muted)">${I.logout}</span><span class="tx"><b style="font-weight:500">خروج من الحساب</b></span></button>
+      </div>
+      <p class="version">الإصدار <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>
     `);
     bindUpdate();
+    document.getElementById('theme-pick').onclick = themeSheet;
     document.getElementById('go-flow').onclick = () => go('#flow');
     document.getElementById('logout').onclick = () => { if (confirm('متأكد تريد تطلع؟ راح تحتاج رمز QR أو الرمز السري حتى ترجع.')) logout(); };
+  }
+
+  // ---------------- appearance (day / midday / evening / night) ----------------
+  const THEME_ICON = { auto: 'clock', day: 'sun', midday: 'sun', evening: 'moon', night: 'moon' };
+  const THEME_HINT = { auto: 'يتغيّر وحده: نهار، ظهيرة، مساء، ليل', day: 'فاتح وهادئ', midday: 'أوضح شي تحت الشمس القوية', evening: 'خافت ومريح للعين', night: 'أغمق شي، ما يزعج بالظلام' };
+  function themeSheet() {
+    const el = document.createElement('div');
+    el.className = 'sheet-bg';
+    const close = () => el.parentNode && el.parentNode.removeChild(el);
+    const draw = () => {
+      el.innerHTML = `<div class="sheet" role="dialog" aria-label="مظهر التطبيق"><h3>مظهر التطبيق</h3><div class="list">
+        ${NawbaTheme.MODES.map(m => `<button class="row ${NawbaTheme.get() === m ? 'on' : ''}" data-m="${m}"><span class="ic">${I[THEME_ICON[m]]}</span>
+          <span class="tx"><b>${esc(NawbaTheme.LABELS[m].ar)}</b><small>${THEME_HINT[m]}</small></span>${NawbaTheme.get() === m ? `<span class="go">${I.check}</span>` : ''}</button>`).join('')}
+        </div></div>`;
+      el.querySelectorAll('[data-m]').forEach(b => b.onclick = () => { NawbaTheme.set(b.dataset.m); draw(); setTimeout(() => { close(); home(); }, 250); });
+    };
+    el.onclick = (e) => { if (e.target === el) close(); };
+    draw(); document.body.appendChild(el);
   }
 
   // ---------------- check for update ----------------
@@ -205,15 +229,15 @@
     const r = await fetch(`../version.json?t=${Date.now()}`, { cache: 'no-store' });
     return (await r.json()).version;
   }
-  function updateButton() {
-    return `<button class="btn ghost" id="check-update" style="margin-top:22px;min-height:48px;font-size:15px${updateAvailable ? ';border-color:var(--saffron);background:var(--saffron-soft)' : ''}">
-      ${I.clock} ${updateAvailable ? 'اكو تحديث جديد — اضغط للتحديث' : 'فحص التحديثات'}</button>
-      <p class="label" style="text-align:center;margin:4px 0 0">الإصدار <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>`;
+  function updateButton(inList) {
+    const row = `<button class="row ${updateAvailable ? 'avail' : ''}" id="check-update"><span class="ic">${I.clock}</span>
+      <span class="tx"><b>${updateAvailable ? 'اكو تحديث جديد' : 'فحص التحديثات'}</b><small>${updateAvailable ? 'اضغط حتى تحدّث التطبيق' : 'تأكد إن عندك آخر نسخة'}</small></span></button>`;
+    return inList ? row : `<div class="list" style="margin-top:22px">${row}</div><p class="version">الإصدار <span class="num" dir="ltr">${esc(CUR_VERSION.slice(0, 7))}</span></p>`;
   }
   function bindUpdate() { const b = document.getElementById('check-update'); if (b) b.onclick = () => checkUpdate(b); }
   async function checkUpdate(btn) {
     if (!navigator.onLine) return toast('ما اكو إنترنت هسه. جرّب لمن يرجع الإنترنت.');
-    btn.disabled = true; btn.textContent = '…دنفحص';
+    btn.disabled = true; const lbl = btn.querySelector('b') || btn; lbl.textContent = 'دنفحص…';
     let latest;
     try { latest = await latestVersion(); } catch { route(); return toast('ما كدرنا نفحص. جرّب بعد شوية.'); }
     if (latest === CUR_VERSION) { updateAvailable = false; route(); return toast('عندك آخر نسخة ✓'); }
@@ -243,7 +267,7 @@
     const p = ME.patient;
     const sz = p.seizures.map((s, i) => `
       <div class="card">
-        <span class="label">نوبة ${arNum(i + 1)}${s.nickname ? ` — "${esc(s.nickname)}"` : ''}</span>
+        <span class="label">نوبة ${arNum(i + 1)}${s.nickname ? `، يسمّونها "${esc(s.nickname)}"` : ''}</span>
         <h3>${esc(s.type?.lay || 'نوع النوبة')}</h3>
         ${s.freqCount ? `<span class="pill saffron">${I.clock} ${arNum(s.freqCount)} مرات ${PER[s.freqPer] || ''}</span>` : ''}
         ${s.duration ? `<span class="pill">تطوّل ${esc(s.duration)}</span>` : ''}
@@ -254,12 +278,12 @@
       <div class="topbar"><button class="icon-btn" data-go="#home" aria-label="رجوع">${I.back}</button><h1>ملف المريض</h1>${voiceBtn()}</div>
       <div class="card"><h3>${esc(p.name)}</h3><p class="label num" dir="ltr" style="text-align:end">${esc(p.code)}</p>
         ${p.doctor ? `<p>الطبيب المعالج: ${esc(p.doctor)}</p>` : ''}${sayBtn('home_profile', 'شنو هالصفحة؟')}</div>
-      ${p.familyNote ? `<div class="card" style="border-color:var(--tigris)"><span class="label">ملاحظة من الدكتور</span><p>${esc(p.familyNote)}</p></div>` : ''}
-      ${p.rescue ? `<div class="card rescue"><span class="label">خطة الإسعاف</span><h3>${esc(p.rescue.drug)} — ${esc(p.rescue.dose)}</h3>
+      ${p.familyNote ? `<div class="card" style="border-color:var(--lapis)"><span class="label">ملاحظة من الدكتور</span><p>${esc(p.familyNote)}</p></div>` : ''}
+      ${p.rescue ? `<div class="card rescue"><span class="label">خطة الإسعاف</span><h3>${esc(p.rescue.drug)} <span class="num" dir="ltr">${esc(p.rescue.dose)}</span></h3>
         <p>${esc(p.rescue.route || '')}</p><p>انطيه إذا النوبة طوّلت <b>${arNum(p.rescue.afterMin || ME.features.rescueAlertMin)} دقايق</b></p>${p.rescue.notes ? `<p class="label">${esc(p.rescue.notes)}</p>` : ''}</div>` : ''}
       ${sz ? `<p class="section-title">النوبات اللي تصير عنده</p>${sz}` : ''}
-      ${p.meds.length ? `<p class="section-title">الأدوية اليومية</p><div class="card">${p.meds.map(m => `<p>${I.pill.replace('<svg', '<svg style="width:20px;height:20px;vertical-align:-4px;color:var(--tigris)"')} <b>${esc(m.name)}</b> ${esc(m.dose || '')} <span class="label">${esc(m.schedule || '')}</span></p>`).join('')}</div>` : ''}
-      ${p.contacts.length ? `<p class="section-title">أرقام مهمة</p>${p.contacts.map(c => `<a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="tel:${esc(c.phone)}"><span class="mi" style="color:var(--tigris)">${I.phone}</span><span style="flex:1"><b>${esc(c.name)}</b><br><span class="label">${esc(c.relation || '')}</span></span><span class="num" dir="ltr">${esc(c.phone)}</span></a>`).join('')}` : ''}
+      ${p.meds.length ? `<p class="section-title">الأدوية اليومية</p><div class="card">${p.meds.map(m => `<p>${I.pill.replace('<svg', '<svg style="width:20px;height:20px;vertical-align:-4px;color:var(--lapis)"')} <b>${esc(m.name)}</b> ${esc(m.dose || '')} <span class="label">${esc(m.schedule || '')}</span></p>`).join('')}</div>` : ''}
+      ${p.contacts.length ? `<p class="section-title">أرقام مهمة</p>${p.contacts.map(c => `<a class="card" style="display:flex;align-items:center;gap:12px;text-decoration:none;color:inherit" href="tel:${esc(c.phone)}"><span class="mi" style="color:var(--lapis)">${I.phone}</span><span style="flex:1"><b>${esc(c.name)}</b><br><span class="label">${esc(c.relation || '')}</span></span><span class="num" dir="ltr">${esc(c.phone)}</span></a>`).join('')}` : ''}
     `);
   }
 
@@ -267,8 +291,8 @@
   function learn() {
     render(`
       <div class="topbar"><button class="icon-btn" data-go="#home" aria-label="رجوع">${I.back}</button><h1>تعلّم</h1>${voiceBtn()}</div>
-      <div class="card" style="background:var(--tigris-soft);border:0"><p style="margin:0">كل ما تتعلم أكثر، الدكتور يفتح لك دروس جديدة.</p>${sayBtn('home_learn')}</div>
-      ${ME.edu.map(m => `<button class="card mod" style="width:100%;text-align:start" data-go="#learn/${m.id}"><span class="mi">${I[m.icon] || I.book}</span><span><b>${esc(m.ar)}</b><br><span class="label">${arNum(m.paras.length)} فقرات · اسمع أو اقرأ</span></span></button>`).join('')}
+      <div class="card" style="background:var(--lapis-soft);border:0"><p style="margin:0">كل ما تتعلم أكثر، الدكتور يفتح لك دروس جديدة.</p>${sayBtn('home_learn')}</div>
+      <div class="list">${ME.edu.map(m => `<button class="row" data-go="#learn/${m.id}"><span class="ic">${I[m.icon] || I.book}</span><span class="tx"><b>${esc(m.ar)}</b><small>${arNum(m.paras.length)} فقرات، اسمعها أو اقراها</small></span><span class="go">${I.next}</span></button>`).join('')}</div>
     `);
   }
   function lesson(id) {
@@ -291,7 +315,7 @@
     try { list = await api('/api/me/events'); LS.set('events', list); } catch { list = LS.get('events', []); }
     const row = (e, wait) => `<div class="card"><div style="display:flex;justify-content:space-between;gap:10px"><b>${fmtDate(e.started_at)}</b>${e.duration_sec != null ? `<span class="pill ${e.duration_sec >= 300 ? 'clay' : ''}">${mmss(e.duration_sec)}</span>` : ''}</div>
       ${e.data?.urgent ? '<span class="pill clay">علامات خطر</span>' : ''}${wait ? '<span class="pill saffron">تنتظر الإنترنت</span>' : ''}${e.data?.rescueGiven ? '<span class="pill clay">انطى دوا الإسعاف</span>' : ''}</div>`;
-    document.getElementById('hist').innerHTML = (pending.map(e => row(e, true)).join('') + list.map(e => row(e)).join('')) || `<div class="step"><div class="picto" style="background:var(--tigris-soft)">${I.p_diary}</div><p>ماكو نوبات مسجلة بعد.</p></div>`;
+    document.getElementById('hist').innerHTML = (pending.map(e => row(e, true)).join('') + list.map(e => row(e)).join('')) || `<div class="step"><div class="picto" style="background:var(--lapis-soft)">${I.p_diary}</div><p>ماكو نوبات مسجلة بعد.</p></div>`;
   }
 
   // ================= CRISIS FLOW =================
@@ -299,8 +323,8 @@
     c_calm: ['اهدأ وخذ نفَس', 'p_calm'], c_space: ['احمي راسه', 'p_space'], c_clothes: ['فك الملابس الضيقة', 'p_clothes'],
     c_side: ['على جنبه إذا تكدر', 'p_side'], c_donts: ['لا تخلي شي بحلكه', 'p_donts'], c_watch: ['ابقى يمّه وراقب', 'p_watch'],
     n_calm: ['ابقى يمّه', 'p_hold'], n_guide: ['بعّده عن الخطر', 'p_guide'], n_talk: ['احجي وياه بهدوء', 'p_talk'],
-    rec1: ['وضعية الإفاقة ١ — الإيد', 'p_rec1'], rec2: ['وضعية الإفاقة ٢ — الركبة', 'p_rec2'], rec3: ['وضعية الإفاقة ٣ — على جنبه', 'p_rec3'],
-    rec4: ['وضعية الإفاقة ٤ — افتح النفَس', 'p_rec4'], breathe: ['تأكد من نفَسه', 'p_breathe'], stay: ['ابقى وياه لحد ما يصحى', 'p_stay'],
+    rec1: ['حط إيده بزاوية', 'p_rec1'], rec2: ['اطوي ركبته البعيدة', 'p_rec2'], rec3: ['دحرجه على جنبه', 'p_rec3'],
+    rec4: ['افتح طريق النفَس', 'p_rec4'], breathe: ['تأكد من نفَسه', 'p_breathe'], stay: ['ابقى وياه لحد ما يصحى', 'p_stay'],
     no_food: ['لا أكل ولا مي هسه', 'p_nofood']
   };
   const ICTAL = { convulsive: ['c_calm', 'c_space', 'c_clothes', 'c_side', 'c_donts', 'c_watch'], nonconvulsive: ['n_calm', 'n_guide', 'n_talk'] };
@@ -403,7 +427,7 @@
       <div class="dots">${list.map((_, j) => `<i class="${j === FLOW.i ? 'on' : ''}"></i>`).join('')}</div>
       <div class="step">
         <div class="picto">${I[pic]}</div>
-        <div class="step-num">${ictal ? 'أثناء النوبة' : 'بعد النوبة'} — الخطوة ${arNum(FLOW.i + 1)} من ${arNum(list.length)}</div>
+        <div class="step-num">${ictal ? 'أثناء النوبة' : (key.startsWith('rec') ? 'وضعية الإفاقة' : 'بعد النوبة')}، الخطوة ${arNum(FLOW.i + 1)} من ${arNum(list.length)}</div>
         <h2>${esc(title)}</h2>
         <p>${esc(NARR[key] || '')}</p>
         ${sayBtn(key, 'اسمع مرة ثانية')}
@@ -443,7 +467,7 @@
       <div style="width:110px;margin:0 auto">${I.p_calm}</div>
       <h2>صارت ${arNum(min)} دقايق والنوبة بعدها مستمرة</h2>
       <p>هاي حالة طارئة</p>
-      ${rx ? `<div class="rx"><b>دوا الإسعاف:</b> ${esc(rx.drug)} — ${esc(rx.dose)}<br>${esc(rx.route || '')}${rx.notes ? `<br><small>${esc(rx.notes)}</small>` : ''}</div>
+      ${rx ? `<div class="rx"><b>دوا الإسعاف:</b> ${esc(rx.drug)} <span dir="ltr">${esc(rx.dose)}</span><br>${esc(rx.route || '')}${rx.notes ? `<br><small>${esc(rx.notes)}</small>` : ''}</div>
         <button class="btn light" id="rx-given">${I.check} انطيته الدوا</button>` : ''}
       ${f.ambulance ? `<a class="btn light" style="text-decoration:none" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل بالإسعاف ${arNum(f.emergencyNumber)}</a>`
         : `<p style="font-size:22px;font-weight:700">خذوه لأقرب طوارئ بأسرع وقت</p>`}
@@ -468,7 +492,7 @@
     render(`${flowHead({ timer: FLOW.mode === 'live' })}
       <div class="dots">${list.map((_, j) => `<i class="${j === FLOW.i ? 'on' : ''}"></i>`).join('')}</div>
       <div class="step">
-        <div class="step-num">أسئلة الأمان — السؤال ${arNum(FLOW.i + 1)} من ${arNum(list.length)}</div>
+        <div class="step-num">أسئلة الأمان، السؤال ${arNum(FLOW.i + 1)} من ${arNum(list.length)}</div>
         <h2>${esc(q.lay)}</h2>
         ${sayBtn('item_' + q.id, 'اسمع السؤال')}
         <div class="yn" style="margin-top:22px">
@@ -492,7 +516,7 @@
           <div style="width:96px;margin:0 auto">${urgent ? I.p_doctor : I.p_shield}</div>
           <h2>${urgent ? 'لازم يشوفه طبيب هسه' : 'ماكو علامات خطر'}</h2>
           <p>${urgent ? 'لا تتأخر. خلي واحد يبقى يمّه.' : 'خليه يرتاح، وكمّل دواه بوقته.'}</p>
-          ${urgent ? (f.ambulance ? `<a class="btn light" style="text-decoration:none;color:var(--clay-deep);margin-top:10px" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل ${arNum(f.emergencyNumber)}</a>` : `<p style="font-weight:700;font-size:20px">خذوه لأقرب طوارئ</p>`) : ''}
+          ${urgent ? (f.ambulance ? `<a class="btn light" style="text-decoration:none;color:var(--crimson-deep);margin-top:10px" href="tel:${esc(f.emergencyNumber)}">${I.phone} اتصل ${arNum(f.emergencyNumber)}</a>` : `<p style="font-weight:700;font-size:20px">خذوه لأقرب طوارئ</p>`) : ''}
         </div>
       </div>
       <button class="btn" id="next">سجّل النوبة للدكتور ${I.next}</button>`, { flow: true, after: true });
@@ -538,7 +562,7 @@
     const titles = { aura: 'شنو صار قبل النوبة؟', ictal: 'شنو شفت أثناء النوبة؟', postictal: 'شنو صار بعد النوبة؟', trigger: 'تتوقع شنو سبّب النوبة؟' };
     render(`${flowHead({ timer: false })}
       <div class="dots">${cats.map((_, j) => `<i class="${j === FLOW.diaryIdx ? 'on' : ''}"></i>`).join('')}</div>
-      <div style="padding:4px 2px 12px"><h2 style="margin:0;font-size:24px">${titles[cat]}</h2><p class="label" style="margin:2px 0 0">اختار كل اللي شفته · تكدر تختار أكثر من شي</p></div>
+      <div style="padding:4px 2px 12px"><h2 style="margin:0;font-size:24px">${titles[cat]}</h2><p class="label" style="margin:2px 0 0">اختار كل اللي شفته، وتكدر تختار أكثر من شي</p></div>
       <div class="chips">${items.map(i => `
         <div class="chip ${FLOW.selected.has(i.id) ? 'on' : ''}" data-id="${i.id}" role="checkbox" aria-checked="${FLOW.selected.has(i.id)}" tabindex="0">
           <span class="tick">${I.check}</span><span class="txt">${esc(i.lay)}${i.typical ? '<span class="usual">عادةً يصير</span>' : ''}</span>

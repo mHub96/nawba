@@ -14,7 +14,7 @@
     setupTitle: ['Create the owner account', 'إنشاء حساب المالك'], setupHint: ['First run: this account has full control of the app. Password: at least 8 characters.', 'التشغيل الأول: هذا الحساب يملك الصلاحيات الكاملة. كلمة المرور ٨ أحرف على الأقل.'], fullName: ['Full name', 'الاسم الكامل'], create: ['Create', 'إنشاء'],
     dashboard: ['Overview', 'نظرة عامة'], patients: ['Patients', 'المرضى'], content: ['Questions & education', 'الأسئلة والتثقيف'], settings: ['App settings', 'إعدادات التطبيق'], staff: ['Staff & roles', 'الكادر والصلاحيات'], audit: ['Activity log', 'سجل النشاط'], account: ['My account', 'حسابي'], logout: ['Sign out', 'خروج'],
     owner: ['Owner', 'المالك'], admin: ['Admin', 'مدير'], doctor: ['Doctor', 'طبيب'], nurse: ['Nurse', 'ممرض'],
-    activePatients: ['Active patients', 'المرضى النشطون'], ev7: ['Seizures · 7 days', 'نوبات · ٧ أيام'], ev30: ['Seizures · 30 days', 'نوبات · ٣٠ يوماً'], long30: ['≥5 min · 30 days', '≥٥ دقائق · ٣٠ يوماً'], activeStaff: ['Active staff', 'الكادر النشط'],
+    activePatients: ['Active patients', 'المرضى النشطون'], ev7: ['Seizures this week', 'نوبات هذا الأسبوع'], ev30: ['Seizures in 30 days', 'نوبات خلال ٣٠ يوماً'], long30: ['Lasting 5 min or more (30 days)', 'استمرت ٥ دقائق أو أكثر (٣٠ يوماً)'], activeStaff: ['Active staff', 'الكادر النشط'],
     recentEvents: ['Latest reported seizures', 'آخر النوبات المسجّلة'], noEvents: ['No seizures recorded yet.', 'لا توجد نوبات مسجّلة بعد.'],
     newPatient: ['New patient', 'مريض جديد'], search: ['Search name or ID…', 'ابحث بالاسم أو الرقم…'], name: ['Name', 'الاسم'], id: ['ID', 'الرقم'], last30: ['Last 30 d', 'آخر ٣٠ يوماً'], lastEvent: ['Last seizure', 'آخر نوبة'], status: ['Status', 'الحالة'], active: ['Active', 'نشط'], inactive: ['Inactive', 'معطّل'], noPatients: ['No patients yet.', 'لا يوجد مرضى بعد.'],
     dossier: ['Dossier', 'الملف'], diary: ['Seizure diary', 'سجل النوبات'], familyView: ['Family view', 'ما تراه العائلة'], access: ['Access & QR', 'الدخول و QR'],
@@ -87,8 +87,7 @@
     document.documentElement.lang = lang; document.documentElement.dir = lang === 'en' ? 'ltr' : 'rtl';
     document.title = `${t('appName')} — ${t('console')}`;
   }
-  function setTheme(v) { if (v) document.documentElement.dataset.theme = v; else delete document.documentElement.dataset.theme; store.set('theme', v || ''); }
-  setTheme(store.get('theme', ''));
+  const themeName = (m) => (window.NawbaTheme ? NawbaTheme.LABELS[m][lang === 'en' ? 'en' : 'ar'] : m);
 
   // ---------------- auth screens ----------------
   function authShell(inner) {
@@ -143,7 +142,7 @@
           <div class="chev"></div>
           <nav class="nav">${NAV.filter(n => can(n[3])).map(n => `<a href="${n[1]}" data-nav="${n[0]}">${n[2]}<span>${t(n[0])}</span></a>`).join('')}</nav>
           <div class="me"><b>${esc(ME.name)}</b><span class="role-tag">${t(ME.role)}</span>
-            <div class="row"><button id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</button><button id="theme-sw" aria-label="${t('theme')}">◐</button><button id="out">${t('logout')}</button></div>
+            <div class="row"><button id="lang-sw">${lang === 'en' ? 'العربية' : 'English'}</button><button id="theme-sw" aria-label="${t('theme')}" title="${t('theme')}: ${esc(themeName(NawbaTheme.get()))}">◐</button><button id="out">${t('logout')}</button></div>
             <button id="upd" class="upd ${UPDATE_AVAILABLE ? 'avail' : ''}">⟳ ${UPDATE_AVAILABLE ? t('updateAvail') : t('checkUpdate')}</button>
             <div class="ver">${t('versionWord')} <span class="ltr num">${esc(CUR_VERSION.slice(0, 7))}</span></div></div>
         </aside>
@@ -151,7 +150,7 @@
       </div>`;
     $('#burger').onclick = () => $('#rail').classList.toggle('open');
     $('#lang-sw').onclick = async () => { lang = lang === 'en' ? 'ar' : 'en'; store.set('lang', lang); store.set('langChosen', true); api('/api/staff/me', { method: 'POST', body: { lang } }).catch(() => {}); applyLang(); shell(); route(); };
-    $('#theme-sw').onclick = () => { const cur = document.documentElement.dataset.theme || (matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'); setTheme(cur === 'dark' ? 'light' : 'dark'); };
+    $('#theme-sw').onclick = (e) => { const m = NawbaTheme.next(); e.currentTarget.title = t('theme') + ': ' + themeName(m); toast(t('theme') + ': ' + themeName(m)); };
     $('#upd').onclick = () => checkUpdate($('#upd'));
     $('#out').onclick = async () => { await api('/api/staff/logout', { method: 'POST' }).catch(() => {}); token = ''; store.set('token', ''); boot(); };
   }
@@ -266,7 +265,7 @@
     if (!CAT) CAT = await api('/api/catalog');
     const p = await api('/api/patients/' + id);
     const tabs = [['dossier', t('dossier')], ['diary', t('diary')], ['family', t('familyView')], ['access', t('access')]];
-    main().innerHTML = head(esc(p.name), `<span class="ltr num">${esc(p.code)}</span>${p.active ? '' : ` · <span class="tag">${t('inactive')}</span>`}`, '', `<a href="#/patients">${t('patients')}</a>`) +
+    main().innerHTML = head(esc(p.name), `<span class="ltr num">${esc(p.code)}</span>${p.active ? '' : ` <span class="tag">${t('inactive')}</span>`}`, '', `<a href="#/patients">${t('patients')}</a>`) +
       `<nav class="tabs">${tabs.map(([k, l]) => `<a href="#/patient/${id}/${k}" class="${tab === k ? 'on' : ''}">${l}</a>`).join('')}</nav><div id="tab"></div>`;
     if (tab === 'diary') return diaryTab(p);
     if (tab === 'family') return familyTab(p);
@@ -417,11 +416,11 @@
       </div>
       <div class="panel chart"><h2>${t('weekly')}</h2><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="${t('weekly')}" style="direction:ltr">
         <line class="grid-l" x1="0" x2="${W}" y1="${H - 18}" y2="${H - 18}"/>${bars}${ticks}</svg>
-        <div class="legend"><span><i style="background:var(--tigris)"></i>${t('diary')}</span><span><i style="background:var(--clay)"></i>${t('longLegend')}</span></div></div>
+        <div class="legend"><span><i style="background:var(--lapis)"></i>${t('diary')}</span><span><i style="background:var(--crimson)"></i>${t('longLegend')}</span></div></div>
       <div class="panel"><h2>${t('diary')}<span style="flex:1"></span><button class="btn sm" id="add-ev">${I.plus}${t('addEvent')}</button></h2>
         ${evs.length ? evs.map(e => `<div class="ev">
           <div class="ev-head"><b>${fmtDT(e.started_at)}</b><span class="tag ${e.duration_sec >= 300 ? 'c' : 't'} num">${fmtDur(e.duration_sec)}</span>
-            ${e.data.kind ? `<span class="tag">${t(e.data.kind)}</span>` : ''}<span class="tag">${e.source === 'family' ? t('family') + (e.data.mode === 'live' ? ' · ' + t('live') : '') : t('staffSrc')}</span>
+            ${e.data.kind ? `<span class="tag">${t(e.data.kind)}</span>` : ''}<span class="tag">${e.source === 'family' ? t('family') + (e.data.mode === 'live' ? ', ' + t('live') : '') : t('staffSrc')}</span>
             ${e.data.urgent ? `<span class="tag c">${t('urgent')}</span>` : ''}${e.data.rescueGiven ? `<span class="tag s">${t('rescueGiven')}${e.data.rescueAfterSec ? ' @' + fmtDur(e.data.rescueAfterSec) : ''}</span>` : ''}
             ${e.video ? `<a class="tag t" href="${API}/api/events/${e.id}/video?t=${encodeURIComponent(token)}" target="_blank">▶ ${t('video')}</a>` : e.data.videoTaken ? `<span class="tag">${t('videoTaken')}</span>` : ''}
             <span style="flex:1"></span>${can('doctor') ? `<button class="btn ghost sm" data-del-ev="${e.id}">${t('del')}</button>` : ''}</div>
@@ -501,11 +500,11 @@
     const w = window.open('', '_blank');
     if (!w) return toast('Popup blocked');
     w.document.write(`<!doctype html><html lang="ar" dir="rtl"><head><meta charset="utf-8"><title>${esc(p.name)} — نوبة</title><link rel="stylesheet" href="${new URL('../fonts/fonts.css', location.href).href}">
-      <style>body{font-family:"Readex Pro",sans-serif;color:#15232a;margin:0;padding:24px}.card{max-width:520px;border:2px solid #15232a;border-radius:18px;padding:22px;box-shadow:4px 4px 0 rgba(21,35,42,.15)}
-      .top{display:flex;align-items:center;gap:10px}.top b{font-size:26px}.chev{height:10px;margin:12px 0;color:#c2482b;background:linear-gradient(135deg,currentColor 25%,transparent 25%) -5px 0/10px 10px,linear-gradient(225deg,currentColor 25%,transparent 25%) -5px 0/10px 10px}
+      <style>body{font-family:"IBM Plex Sans Arabic",sans-serif;color:#0e1a3a;margin:0;padding:24px}.card{max-width:520px;border:1.5px solid #1d3fa0;border-radius:20px;padding:22px;border-top:10px solid #1d3fa0}
+      .top{display:flex;align-items:center;gap:10px}.top b{font-family:"Reem Kufi",sans-serif;font-size:30px}.chev{height:1px;margin:14px 0;background:#d5dbe7}
       .row{display:flex;gap:18px;align-items:center}.qr svg{width:170px;height:170px}.c{font-size:22px;font-weight:700;direction:ltr;display:inline-block;letter-spacing:.05em}ol{padding-inline-start:20px;margin:10px 0 0;font-size:14px;line-height:1.8}small{color:#5b6a6f}
       @media print{body{padding:0}}</style></head><body><div class="card">
-      <div class="top">${I.logo.replace('<svg', '<svg width="42" height="42"').replace(/var\(--tigris\)/g, '#0e5a5e').replace(/var\(--on-tigris\)/g, '#f3eee4')}<div><b>نوبة</b><br><small>${esc(SETTINGS.centerName?.ar || '')}</small></div></div>
+      <div class="top">${I.logo.replace('<svg', '<svg width="42" height="42"')}<div><b>نوبة</b><br><small>${esc(SETTINGS.centerName?.ar || '')}</small></div></div>
       <div class="chev"></div>
       <div class="row"><div class="qr">${svg}</div><div><small>المريض</small><div style="font-size:19px;font-weight:700">${esc(p.name)}</div>
         <small>رقم المريض</small><div class="c">${esc(p.code)}</div>${pw ? `<small>الرمز السري</small><div class="c">${esc(pw)}</div>` : ''}</div></div>
@@ -533,7 +532,7 @@
           return `<div class="panel"><h2>${lang === 'en' ? esc(c.en) : esc(c.ar)}${c.family ? `<span class="hint">${fmtN(all.filter(i => i.visible).length)}/${fmtN(all.length)} ${t('visibleCount')}</span>` : ''}</h2>
           ${!c.family ? `<p class="muted small" style="margin-top:-6px">${t('staffOnlyCat')}</p>` : ''}
           ${items.map(i => `<div class="item-row"><div class="t"><b>${esc(iname(i))}</b> <span class="lvl-badge ${i.lvl}">${t(i.lvl)}</span>${i.group ? ` <span class="tag">${esc(i.group)}</span>` : ''}${i.ilae ? ` <span class="tag">${esc(i.ilae)}</span>` : ''}
-            <small>${lang === 'en' ? esc(i.ar) + ' · ' : ''}«${esc(i.lay)}»</small></div>
+            <small>${lang === 'en' ? esc(i.ar) + '<br>' : ''}«${esc(i.lay)}»</small></div>
             ${c.family ? `<label class="sw" title="${i.visible ? t('shown') : t('hidden')}"><input type="checkbox" data-vis="${i.id}" ${i.visible ? 'checked' : ''} ${editable ? '' : 'disabled'}><i></i></label>` : ''}</div>`).join('')}
           </div>`;
         }).join('')}
@@ -603,7 +602,7 @@
       <div class="panel"><h2>${t('rolesTitle')}</h2><p class="small" style="line-height:1.9;margin:0">${t('rolesHelp')}</p></div></div>
       <div class="panel"><div class="table-wrap"><table><thead><tr><th>${t('name')}</th><th>${t('username')}</th><th>${t('role')}</th><th>${t('status')}</th><th></th></tr></thead><tbody>
       ${rows.map(u => { const mine = LEVEL[u.role] < LEVEL[ME.role]; return `<tr><td><b>${esc(u.name)}</b></td><td class="ltr">${esc(u.username)}</td>
-        <td>${mine ? `<select data-role="${u.id}" style="width:auto">${assignable.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${t(r)}</option>`).join('')}</select>` : `<span class="role-tag" style="color:var(--tigris)">${t(u.role)}</span>`}</td>
+        <td>${mine ? `<select data-role="${u.id}" style="width:auto">${assignable.map(r => `<option value="${r}" ${u.role === r ? 'selected' : ''}>${t(r)}</option>`).join('')}</select>` : `<span class="role-tag" style="background:var(--lapis-soft);color:var(--lapis)">${t(u.role)}</span>`}</td>
         <td>${u.active ? `<span class="tag r">${t('active')}</span>` : `<span class="tag">${t('inactive')}</span>`}</td>
         <td>${mine ? `<div class="btn-group"><button class="btn ghost sm" data-act="${u.id}|${u.active ? 0 : 1}">${u.active ? t('disable') : t('enable')}</button><button class="btn ghost sm" data-pw="${u.id}">${t('resetStaffPw')}</button></div>` : ''}</td></tr>`; }).join('')}
       </tbody></table></div></div>`;
@@ -651,12 +650,12 @@
     const pct = (v, lim) => Math.min(100, (v / lim) * 100);
     const fmtP = (p) => (p < 0.1 && p > 0 ? '<0.1' : p.toFixed(p < 10 ? 1 : 0)) + '%';
     const fmtB = (b) => b >= 1e9 ? (b / 1e9).toFixed(2) + ' GB' : b >= 1e6 ? (b / 1e6).toFixed(1) + ' MB' : (b / 1e3).toFixed(0) + ' KB';
-    const tone = (p) => p >= 85 ? 'var(--clay)' : p >= 60 ? 'var(--saffron)' : 'var(--tigris)';
+    const tone = (p) => p >= 85 ? 'var(--crimson)' : p >= 60 ? 'var(--ochre)' : 'var(--lapis)';
     const meter = (label, used, lim, fmt = fmtN) => {
       const p = pct(used, lim);
       return `<div class="meter"><div class="meter-top"><span>${label}</span><b style="color:${tone(p)}">${fmtP(p)}</b></div>
-        <div class="bar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.toFixed(1)}" aria-label="${label}"><i style="width:${Math.max(p, 0.6)}%;background:${tone(p)}"></i></div>
-        <div class="meter-foot"><span><b>${fmt(used)}</b> ${t('used')} ${t('of')} ${fmt(lim)}</span><span>${fmt(Math.max(0, lim - used))} ${t('remaining')} · <b>${fmtP(100 - p)}</b></span></div></div>`;
+        <div class="mbar" role="meter" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${p.toFixed(1)}" aria-label="${label}"><i style="width:${Math.max(p, 0.6)}%;background:${tone(p)}"></i></div>
+        <div class="meter-foot"><span><b>${fmt(used)}</b> ${t('used')} ${t('of')} ${fmt(lim)}</span><span><b>${fmtP(100 - p)}</b> ${t('remaining')} (${fmt(Math.max(0, lim - used))})</span></div></div>`;
     };
     if (!u.configured || u.error) {
       main().querySelector('.empty').outerHTML = `<div class="note">${u.configured ? esc(u.error) : t('notConfigured')}</div>`;
@@ -668,7 +667,7 @@
     const maxR = Math.max(1, ...u.history.map(h => h.rowsRead));
     main().querySelector('.empty').outerHTML = `
       <div class="note" style="margin-bottom:14px">${t('usageHint')}</div>
-      <p class="muted small" style="margin:-4px 0 14px">${t('resetsIn')} <b class="num">${hh}:${String(mm).padStart(2, '0')}</b> · ${fmtDT(u.fetchedAt)}</p>
+      <p class="muted small" style="margin:-4px 0 14px">${t('resetsIn')} <b class="num">${hh}:${String(mm).padStart(2, '0')}</b></p>
       <div class="grid g2">
         <div class="panel stamp">${meter(t('uReads'), td.rowsRead, L.rowsRead)}</div>
         <div class="panel stamp">${meter(t('uWrites'), td.rowsWritten, L.rowsWritten)}</div>
@@ -678,7 +677,7 @@
       ${u.cpuP50 != null ? `<div class="panel"><h2>${t('uCpu')} <span class="hint">${t('limitWord')} ${L.cpuMs} ms</span></h2><div class="grid g2">${cpuMeter(t('typical') + ' (p50)', u.cpuP50)}${cpuMeter(t('worst') + ' (p99)', u.cpuP99)}</div></div>` : ''}
       <div class="panel"><h2>${t('last7')}</h2><div class="table-wrap"><table><thead><tr><th>${t('date')}</th><th>${t('uReads')}</th><th></th><th>${t('uWrites')}</th><th>${t('uRequests')}</th></tr></thead><tbody>
         ${u.history.slice().reverse().map(h => `<tr><td class="num ltr">${h.date}</td><td class="n">${fmtN(h.rowsRead)} <span class="muted small">(${fmtP(pct(h.rowsRead, L.rowsRead))})</span></td>
-          <td style="width:30%"><div class="bar thin"><i style="width:${(h.rowsRead / maxR) * 100}%;background:var(--tigris)"></i></div></td>
+          <td style="width:30%"><div class="mbar thin"><i style="width:${(h.rowsRead / maxR) * 100}%;background:var(--lapis)"></i></div></td>
           <td class="n">${fmtN(h.rowsWritten)} <span class="muted small">(${fmtP(pct(h.rowsWritten, L.rowsWritten))})</span></td><td class="n">${fmtN(h.requests)} <span class="muted small">(${fmtP(pct(h.requests, L.requests))})</span></td></tr>`).join('')}
       </tbody></table></div></div>`;
   }
@@ -694,12 +693,14 @@
   // ---------------- account ----------------
   function accountPage() {
     setNav('account');
-    main().innerHTML = head(t('account'), `${esc(ME.username)} · ${t(ME.role)}`) + `<div class="grid g2">
+    main().innerHTML = head(t('account'), `${esc(ME.username)}, ${t(ME.role)}`) + `<div class="grid g2">
       <form class="panel" id="pf"><h2>${t('changePw')}</h2><div id="e"></div><div class="grid">
         <label class="f">${t('oldPw')}<input type="password" name="oldPassword" required autocomplete="current-password"></label>
         <label class="f">${t('newPw')}<input type="password" name="newPassword" minlength="8" required autocomplete="new-password"></label>
         <button class="btn" type="submit">${t('save')}</button></div></form>
-      <div class="panel"><h2>${t('language')}</h2><div class="btn-group"><button class="btn ${lang === 'ar' ? '' : 'ghost'}" data-l="ar">العربية</button><button class="btn ${lang === 'en' ? '' : 'ghost'}" data-l="en">English</button></div></div></div>`;
+      <div class="panel"><h2>${t('language')}</h2><div class="btn-group"><button class="btn ${lang === 'ar' ? '' : 'ghost'}" data-l="ar">العربية</button><button class="btn ${lang === 'en' ? '' : 'ghost'}" data-l="en">English</button></div>
+        <h2 style="margin-top:22px">${t('theme')}</h2><div class="btn-group">${NawbaTheme.MODES.map(m => `<button class="btn ${NawbaTheme.get() === m ? '' : 'ghost'}" data-th="${m}">${esc(themeName(m))}</button>`).join('')}</div></div></div>`;
+    $$('[data-th]').forEach(b => b.onclick = () => { NawbaTheme.set(b.dataset.th); accountPage(); });
     $('#pf').onsubmit = async (e) => {
       e.preventDefault();
       try { await api('/api/staff/me', { method: 'POST', body: Object.fromEntries(new FormData(e.target)) }); e.target.reset(); $('#e').innerHTML = `<div class="ok-box">${t('saved')}</div>`; }

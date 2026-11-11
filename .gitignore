@@ -8,3 +8,5 @@ WhatsApp Image*.jpeg
 *.txt
 CLAUDE.local.md
 .claude/settings.local.json
+.openai-key
+.env

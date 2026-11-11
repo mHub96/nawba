@@ -8,7 +8,7 @@ whose text changed are regenerated. Output: public/audio/*.mp3 + index.json
     python tools/gen_audio.py            # default female voice (Rana)
     python tools/gen_audio.py --voice ar-IQ-BasselNeural   # male voice
 """
-import argparse, asyncio, hashlib, json, pathlib, sys
+import argparse, asyncio, hashlib, json, os, pathlib, sys, urllib.request
 
 import edge_tts
 
@@ -35,42 +35,81 @@ def lines():
             yield f"edu_{m['id']}_{i}", p
 
 
-async def main(voice, rate):
+OPENAI_INSTRUCTIONS = (
+    "Speak in natural Iraqi Arabic, Baghdadi dialect, exactly as written — do not convert to Modern Standard Arabic. "
+    "You are a calm, warm, experienced Iraqi nurse guiding a frightened family member through an epileptic seizure. "
+    "Steady, unhurried pace with short natural pauses at commas and full stops; reassuring and clear, never dramatic. "
+    "For questions, use a gentle rising intonation."
+)
+
+
+def openai_key():
+    k = os.environ.get("OPENAI_API_KEY", "").strip()
+    f = ROOT / ".openai-key"          # git-ignored local file, one line
+    if not k and f.exists():
+        k = f.read_text(encoding="utf-8").strip()
+    if not k:
+        raise SystemExit("Set OPENAI_API_KEY or put the key in .openai-key (project root).")
+    return k
+
+
+def openai_tts(text, voice, model, key, path):
+    body = json.dumps({"model": model, "voice": voice, "input": text, "instructions": OPENAI_INSTRUCTIONS, "response_format": "mp3"}).encode()
+    req = urllib.request.Request("https://api.openai.com/v1/audio/speech", data=body, method="POST",
+                                 headers={"Authorization": "Bearer " + key, "Content-Type": "application/json"})
+    with urllib.request.urlopen(req, timeout=120) as r:
+        path.write_bytes(r.read())
+
+
+async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
     OUT.mkdir(parents=True, exist_ok=True)
+    key = openai_key() if engine == "openai" else None
+    tag = f"openai:{model}:{voice}" if engine == "openai" else voice
     idx_path = OUT / "index.json"
     old = json.loads(idx_path.read_text(encoding="utf-8")) if idx_path.exists() else {}
     old_hashes = old.get("hashes", {})
     todo, hashes = [], {}
     for key, text in lines():
-        h = hashlib.sha1(f"{voice}|{rate}|{text}".encode()).hexdigest()[:12]
+        h = hashlib.sha1(f"{tag}|{rate}|{text}".encode()).hexdigest()[:12]
         hashes[key] = h
-        if old_hashes.get(key) != h or not (OUT / f"{key}.mp3").exists():
+        if (old_hashes.get(key) != h or not (OUT / f"{key}.mp3").exists()) and (not only or key in only):
             todo.append((key, text))
-    print(f"{len(hashes)} clips, {len(todo)} to generate with {voice}")
+        elif only and key not in only:
+            hashes[key] = old_hashes.get(key, h)   # keep untouched clips as they are
+    print(f"{len(hashes)} clips, {len(todo)} to generate with {tag}")
     sem = asyncio.Semaphore(4)
 
-    async def one(key, text):
+    async def one(k, text):
         async with sem:
             for attempt in range(3):
                 try:
-                    await edge_tts.Communicate(text, voice, rate=rate).save(str(OUT / f"{key}.mp3"))
-                    print("  ok", key)
+                    if engine == "openai":
+                        await asyncio.to_thread(openai_tts, text, voice, model, key, OUT / f"{k}.mp3")
+                        print("  ok", k)
+                        return
+                    await edge_tts.Communicate(text, voice, rate=rate).save(str(OUT / f"{k}.mp3"))
+                    print("  ok", k)
                     return
-                except Exception as e:  # network hiccup: retry
-                    print("  retry", key, e, file=sys.stderr)
-                    await asyncio.sleep(2)
-            raise SystemExit(f"failed: {key}")
+                except Exception as e:  # network hiccup / rate limit: retry
+                    print("  retry", k, e, file=sys.stderr)
+                    await asyncio.sleep(3 * (attempt + 1))
+            raise SystemExit(f"failed: {k}")
 
     await asyncio.gather(*(one(k, t) for k, t in todo))
     for f in OUT.glob("*.mp3"):  # remove clips no longer referenced
         if f.stem not in hashes:
             f.unlink()
-    idx_path.write_text(json.dumps({"voice": voice, "files": sorted(hashes), "hashes": hashes}, ensure_ascii=False, indent=0), encoding="utf-8")
+    idx_path.write_text(json.dumps({"voice": tag, "files": sorted(hashes), "hashes": hashes}, ensure_ascii=False, indent=0), encoding="utf-8")
 
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--voice", default="ar-IQ-RanaNeural")
-    ap.add_argument("--rate", default="-8%", help="slightly slower = calmer, clearer")
+    ap.add_argument("--engine", choices=["edge", "openai"], default="edge",
+                    help="edge = Microsoft Iraqi neural voices (free); openai = gpt-4o-mini-tts (most natural, needs OPENAI_API_KEY)")
+    ap.add_argument("--voice", default=None, help="edge: ar-IQ-RanaNeural | ar-IQ-BasselNeural; openai: coral, sage, nova, shimmer, ash, ballad…")
+    ap.add_argument("--model", default="gpt-4o-mini-tts")
+    ap.add_argument("--rate", default="-8%", help="edge only: slightly slower = calmer, clearer")
+    ap.add_argument("--only", nargs="*", help="regenerate just these clip keys (e.g. a sample: --only c_calm c_side item_R_long)")
     a = ap.parse_args()
-    asyncio.run(main(a.voice, a.rate))
+    voice = a.voice or ("coral" if a.engine == "openai" else "ar-IQ-RanaNeural")
+    asyncio.run(main(voice, a.rate, a.engine, a.model, set(a.only) if a.only else None))
