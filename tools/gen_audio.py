@@ -61,10 +61,43 @@ def openai_tts(text, voice, model, key, path):
         path.write_bytes(r.read())
 
 
+def eleven_key():
+    k = os.environ.get("ELEVENLABS_API_KEY", "").strip()
+    f = ROOT / ".elevenlabs-key"      # git-ignored local file, one line
+    if not k and f.exists():
+        k = f.read_text(encoding="utf-8").strip()
+    if not k:
+        raise SystemExit("Set ELEVENLABS_API_KEY or put the key in .elevenlabs-key (project root).")
+    return k
+
+
+def eleven_request(path, key, body=None):
+    req = urllib.request.Request("https://api.elevenlabs.io" + path, data=json.dumps(body).encode() if body else None,
+                                 method="POST" if body else "GET", headers={"xi-api-key": key, "Content-Type": "application/json"})
+    return urllib.request.urlopen(req, timeout=120)
+
+
+def eleven_list_voices():
+    key = eleven_key()
+    data = json.load(eleven_request("/v1/voices", key))
+    for v in data.get("voices", []):
+        lab = v.get("labels") or {}
+        print(f"{v['voice_id']}  {v['name']:<28} {lab.get('gender','')} {lab.get('accent','')} {lab.get('language','')} {lab.get('description','')}")
+    sub = json.load(eleven_request("/v1/user/subscription", key))
+    print(f"\ncharacters used {sub.get('character_count')} of {sub.get('character_limit')} this period")
+
+
+def eleven_tts(text, voice_id, model, key, path):
+    body = {"text": text, "model_id": model,
+            "voice_settings": {"stability": 0.55, "similarity_boost": 0.8, "style": 0.15, "use_speaker_boost": True, "speed": 0.92}}
+    with eleven_request(f"/v1/text-to-speech/{voice_id}?output_format=mp3_44100_128", key, body) as r:
+        path.write_bytes(r.read())
+
+
 async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
     OUT.mkdir(parents=True, exist_ok=True)
-    key = openai_key() if engine == "openai" else None
-    tag = f"openai:{model}:{voice}" if engine == "openai" else voice
+    key = openai_key() if engine == "openai" else eleven_key() if engine == "elevenlabs" else None
+    tag = f"{engine}:{model}:{voice}" if engine in ("openai", "elevenlabs") else voice
     idx_path = OUT / "index.json"
     old = json.loads(idx_path.read_text(encoding="utf-8")) if idx_path.exists() else {}
     old_hashes = old.get("hashes", {})
@@ -83,8 +116,9 @@ async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
         async with sem:
             for attempt in range(3):
                 try:
-                    if engine == "openai":
-                        await asyncio.to_thread(openai_tts, text, voice, model, key, OUT / f"{k}.mp3")
+                    if engine in ("openai", "elevenlabs"):
+                        fn = openai_tts if engine == "openai" else eleven_tts
+                        await asyncio.to_thread(fn, text, voice, model, key, OUT / f"{k}.mp3")
                         print("  ok", k)
                         return
                     await edge_tts.Communicate(text, voice, rate=rate).save(str(OUT / f"{k}.mp3"))
@@ -104,12 +138,18 @@ async def main(voice, rate, engine="edge", model="gpt-4o-mini-tts", only=None):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--engine", choices=["edge", "openai"], default="edge",
-                    help="edge = Microsoft Iraqi neural voices (free); openai = gpt-4o-mini-tts (most natural, needs OPENAI_API_KEY)")
-    ap.add_argument("--voice", default=None, help="edge: ar-IQ-RanaNeural | ar-IQ-BasselNeural; openai: coral, sage, nova, shimmer, ash, ballad…")
-    ap.add_argument("--model", default="gpt-4o-mini-tts")
+    ap.add_argument("--engine", choices=["edge", "openai", "elevenlabs"], default="edge",
+                    help="edge = Microsoft Iraqi neural voices (free); openai = gpt-4o-mini-tts; elevenlabs = ElevenLabs (needs ELEVENLABS_API_KEY)")
+    ap.add_argument("--voice", default=None, help="edge: ar-IQ-RanaNeural | ar-IQ-BasselNeural; openai: coral, sage…; elevenlabs: a voice_id (see --list-voices)")
+    ap.add_argument("--model", default=None, help="openai: gpt-4o-mini-tts; elevenlabs: eleven_multilingual_v2 (default) or eleven_v3")
+    ap.add_argument("--list-voices", action="store_true", help="elevenlabs: list the voices in the account and remaining characters")
     ap.add_argument("--rate", default="-8%", help="edge only: slightly slower = calmer, clearer")
     ap.add_argument("--only", nargs="*", help="regenerate just these clip keys (e.g. a sample: --only c_calm c_side item_R_long)")
     a = ap.parse_args()
+    if a.list_voices:
+        eleven_list_voices(); raise SystemExit
+    if a.engine == "elevenlabs" and not a.voice:
+        raise SystemExit("ElevenLabs needs --voice <voice_id>. Run with --list-voices to see the account's voices.")
     voice = a.voice or ("coral" if a.engine == "openai" else "ar-IQ-RanaNeural")
-    asyncio.run(main(voice, a.rate, a.engine, a.model, set(a.only) if a.only else None))
+    model = a.model or {"openai": "gpt-4o-mini-tts", "elevenlabs": "eleven_multilingual_v2"}.get(a.engine, "")
+    asyncio.run(main(voice, a.rate, a.engine, model, set(a.only) if a.only else None))
