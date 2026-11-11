@@ -5,3 +5,4 @@ worker/.wrangler/
 .wrangler-dry/
 *.log
 WhatsApp Image*.jpeg
+*.txt
