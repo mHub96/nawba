@@ -83,9 +83,21 @@ The OpenAI engine needs an API key. Set it in the environment variable `OPENAI_A
 
 ## Step photos and animations
 
-The crisis walkthrough shows real photos for some steps and uses pictograms for the rest. The files are in `public/img/steps/`. For each step the app shows an animation (animated WebP) first, then a still photo, then the pictogram. People who turn on "reduce motion" on their phone see the still photo instead of the animation. The map from steps to files is `MEDIA` in `public/app/app.js`. Every file is also listed in `STEP_MEDIA` in `public/app/sw.js` so it works offline.
+Every step of the crisis walkthrough shows a real photo. The recovery-position steps also have animations. The files are in `public/img/steps/`. For each step the app shows an animation (animated WebP) first, then a still photo, then the pictogram. People who turn on "reduce motion" on their phone see the still photo instead of the animation. The map from steps to files is `MEDIA` in `public/app/app.js`. Every file is also listed in `STEP_MEDIA` in `public/app/sw.js` so it works offline.
 
-- `rec1.jpg`, `rec2.jpg`, `rec3.jpg`, `rec2.webp`, `rec3.webp`: cropped and animated from the "Восстановительная поза, шаг 1–3" photos by Anastasiya Lvova on Wikimedia Commons ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). These edited versions are under the same licence. The patient ends up on his **left** side.
+- `rec1.jpg`, `rec2.jpg`, `rec3.jpg`, `rec2.webp`, `rec3.webp`: cropped and animated from the "Восстановительная поза, шаг 1–3" photos by Anastasiya Lvova on Wikimedia Commons ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). These edited versions are under the same licence. The patient ends up on his **left** side. The "stay with him" step reuses `rec3.jpg`.
+- The other photos all come from Wikimedia Commons. Each one was cropped to 8:5. The spoon and the glass of water have a red "no" sign added, and the stairs have a warning sign.
+  - `c_calm.jpg`: "Analog Stop Watch" by Jeremyida002 (CC BY-SA 4.0)
+  - `c_space.jpg`: "Pillow Flax Image 2" by Orgel Hrubek (CC BY-SA 4.0)
+  - `c_clothes.jpg`: "Close-up of a businesswoman taking off her glasses" by Shixart1985 (CC BY 2.0)
+  - `c_donts.jpg`: "Spoon (454673126)" by bongo vongo (CC BY-SA 2.0)
+  - `c_watch.jpg`: U.S. Air Force photo by Tech. Sgt. Justin Norton (public domain)
+  - `n_calm.jpg`: Bill Strode, U.S. National Archives (NARA 543906) (public domain)
+  - `n_guide.jpg`: "Up the stairs into the great hall of Central railway station in Helsinki" by Henry Söderlund (CC BY 2.0)
+  - `n_talk.jpg`: "Disabledandhere-028-handholdingdate" by Chona Kasinger for Disabled And Here (CC BY 4.0)
+  - `rec4.jpg`: U.S. Navy photo by MC1 Chris Fahey (public domain)
+  - `breathe.jpg`: U.S. Air Force photo by Senior Airman Brenden Beezley (public domain)
+  - `no_food.jpg`: "Glass-of-water" by Derek Jensen (Tysto) (public domain)
 
 To add a photo or animation for another step, put the file in `public/img/steps/`, add it to `MEDIA` and `STEP_MEDIA`, and keep it under about 250 KB. Use only photos the centre took itself, with the consent of everyone shown, or files under a free licence. Give credit where the licence requires it.
 

@@ -412,11 +412,24 @@
   // Real photos / animations per step (files in public/img/steps). Priority: animation > photo > pictogram.
   // To add one: drop the file in public/img/steps, list it here and in sw.js STEP_MEDIA.
   const LVOVA = 'Anastasiya Lvova · CC BY-SA 4.0 · Wikimedia Commons';
+  const WC = ' · Wikimedia Commons', PD = ' · Public domain' + WC;
   const MEDIA = {
+    c_calm: { img: 'c_calm.jpg', credit: 'Jeremyida002 · CC BY-SA 4.0' + WC },
+    c_space: { img: 'c_space.jpg', credit: 'Orgel Hrubek · CC BY-SA 4.0' + WC },
+    c_clothes: { img: 'c_clothes.jpg', credit: 'Shixart1985 · CC BY 2.0' + WC },
     c_side: { anim: 'rec3.webp', img: 'rec3.jpg', credit: LVOVA },
+    c_donts: { img: 'c_donts.jpg', credit: 'bongo vongo · CC BY-SA 2.0' + WC },
+    c_watch: { img: 'c_watch.jpg', credit: 'U.S. Air Force, J. Norton' + PD },
+    n_calm: { img: 'n_calm.jpg', credit: 'Bill Strode, NARA' + PD },
+    n_guide: { img: 'n_guide.jpg', credit: 'Henry Söderlund · CC BY 2.0' + WC },
+    n_talk: { img: 'n_talk.jpg', credit: 'Chona Kasinger, Disabled And Here · CC BY 4.0' + WC },
     rec1: { img: 'rec1.jpg', credit: LVOVA },
     rec2: { anim: 'rec2.webp', img: 'rec2.jpg', credit: LVOVA },
-    rec3: { anim: 'rec3.webp', img: 'rec3.jpg', credit: LVOVA }
+    rec3: { anim: 'rec3.webp', img: 'rec3.jpg', credit: LVOVA },
+    rec4: { img: 'rec4.jpg', credit: 'U.S. Navy, MC1 C. Fahey' + PD },
+    breathe: { img: 'breathe.jpg', credit: 'U.S. Air Force, B. Beezley' + PD },
+    stay: { img: 'rec3.jpg', credit: LVOVA },
+    no_food: { img: 'no_food.jpg', credit: 'Derek Jensen (Tysto)' + PD }
   };
   function stepVisual(key, pic, title) {
     const m = MEDIA[key];

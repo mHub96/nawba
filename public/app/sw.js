@@ -12,7 +12,8 @@ const SHELL = [
   '../fonts/ibm-plex-sans-arabic-latin-400-normal.woff2', '../fonts/ibm-plex-sans-arabic-latin-600-normal.woff2'
 ].map(R);
 // step photos / animations used in the crisis flow (must work offline too)
-const STEP_MEDIA = ['rec1.jpg', 'rec2.jpg', 'rec3.jpg', 'rec2.webp', 'rec3.webp'].map(f => R(`../img/steps/${f}`));
+const STEP_MEDIA = ['c_calm.jpg', 'c_space.jpg', 'c_clothes.jpg', 'c_donts.jpg', 'c_watch.jpg', 'n_calm.jpg', 'n_guide.jpg', 'n_talk.jpg',
+  'rec1.jpg', 'rec2.jpg', 'rec3.jpg', 'rec4.jpg', 'breathe.jpg', 'no_food.jpg', 'rec2.webp', 'rec3.webp'].map(f => R(`../img/steps/${f}`));
 const APP_ROOT = R('./');
 
 self.addEventListener('install', (e) => {
