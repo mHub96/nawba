@@ -11,6 +11,8 @@ const SHELL = [
   '../fonts/ibm-plex-sans-arabic-arabic-400-normal.woff2', '../fonts/ibm-plex-sans-arabic-arabic-500-normal.woff2', '../fonts/ibm-plex-sans-arabic-arabic-600-normal.woff2',
   '../fonts/ibm-plex-sans-arabic-latin-400-normal.woff2', '../fonts/ibm-plex-sans-arabic-latin-600-normal.woff2'
 ].map(R);
+// step photos / animations used in the crisis flow (must work offline too)
+const STEP_MEDIA = ['rec1.jpg', 'rec2.jpg', 'rec3.jpg', 'rec2.webp', 'rec3.webp'].map(f => R(`../img/steps/${f}`));
 const APP_ROOT = R('./');
 
 self.addEventListener('install', (e) => {
@@ -18,6 +20,7 @@ self.addEventListener('install', (e) => {
     const c = await caches.open(VERSION);
     // cache: 'reload' bypasses the browser's HTTP cache so an update never re-caches yesterday's files
     await c.addAll(SHELL.map(u => new Request(u, { cache: 'reload' })));
+    try { await c.addAll(STEP_MEDIA.map(u => new Request(u, { cache: 'reload' }))); } catch (err) { /* fetched on demand later */ }
     try {
       const idx = await (await fetch(R('../audio/index.json'), { cache: 'no-cache' })).json();
       const urls = idx.files.map(f => R(`../audio/${f}.mp3?v=${idx.hashes[f]}`));

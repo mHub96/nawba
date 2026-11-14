@@ -409,6 +409,25 @@
     rec4: ['افتح طريق النفَس', 'p_rec4'], breathe: ['تأكد من نفَسه', 'p_breathe'], stay: ['ابقى وياه لحد ما يصحى', 'p_stay'],
     no_food: ['لا أكل ولا مي هسّه', 'p_nofood']
   };
+  // Real photos / animations per step (files in public/img/steps). Priority: animation > photo > pictogram.
+  // To add one: drop the file in public/img/steps, list it here and in sw.js STEP_MEDIA.
+  const LVOVA = 'Anastasiya Lvova · CC BY-SA 4.0 · Wikimedia Commons';
+  const MEDIA = {
+    c_side: { anim: 'rec3.webp', img: 'rec3.jpg', credit: LVOVA },
+    rec1: { img: 'rec1.jpg', credit: LVOVA },
+    rec2: { anim: 'rec2.webp', img: 'rec2.jpg', credit: LVOVA },
+    rec3: { anim: 'rec3.webp', img: 'rec3.jpg', credit: LVOVA }
+  };
+  function stepVisual(key, pic, title) {
+    const m = MEDIA[key];
+    if (!m) return `<div class="picto">${I[pic]}</div>`;
+    const P = '../img/steps/';
+    // animations are skipped for people who ask the phone for reduced motion; they get the still photo
+    return `<figure class="photo"><picture>
+        ${m.anim ? `<source srcset="${P}${m.anim}" type="image/webp" media="(prefers-reduced-motion: no-preference)">` : ''}
+        <img src="${P}${m.img}" alt="${esc(title)}" decoding="async"></picture>
+        ${m.credit ? `<figcaption dir="ltr">${esc(m.credit)}</figcaption>` : ''}</figure>`;
+  }
   const ICTAL = { convulsive: ['c_calm', 'c_space', 'c_clothes', 'c_side', 'c_donts', 'c_watch'], nonconvulsive: ['n_calm', 'n_guide', 'n_talk'] };
   const POST = { convulsive: ['rec1', 'rec2', 'rec3', 'rec4', 'breathe', 'stay', 'no_food'], nonconvulsive: ['stay', 'no_food'] };
   const DIARY_CATS = ['aura', 'ictal', 'postictal', 'trigger'];
@@ -508,7 +527,7 @@
     render(`${flowHead()}
       <div class="dots">${list.map((_, j) => `<i class="${j === FLOW.i ? 'on' : ''}"></i>`).join('')}</div>
       <div class="step">
-        <div class="picto">${I[pic]}</div>
+        ${stepVisual(key, pic, title)}
         <div class="step-num">${ictal ? 'أثناء النوبة' : (key.startsWith('rec') ? 'وضعية الإفاقة' : 'بعد النوبة')}، الخطوة ${arNum(FLOW.i + 1)} من ${arNum(list.length)}</div>
         <h2>${esc(title)}</h2>
         <p>${esc(NARR[key] || '')}</p>

@@ -81,6 +81,14 @@ python tools/gen_audio.py --engine openai --only c_calm c_side item_R_long   # t
 
 The OpenAI engine needs an API key. Set it in the environment variable `OPENAI_API_KEY`, or put it in a one-line `.openai-key` file in the project root. That file is git-ignored, so it is never uploaded.
 
+## Step photos and animations
+
+The crisis walkthrough shows real photos for some steps and uses pictograms for the rest. The files are in `public/img/steps/`. For each step the app shows an animation (animated WebP) first, then a still photo, then the pictogram. People who turn on "reduce motion" on their phone see the still photo instead of the animation. The map from steps to files is `MEDIA` in `public/app/app.js`. Every file is also listed in `STEP_MEDIA` in `public/app/sw.js` so it works offline.
+
+- `rec1.jpg`, `rec2.jpg`, `rec3.jpg`, `rec2.webp`, `rec3.webp`: cropped and animated from the "Восстановительная поза, шаг 1–3" photos by Anastasiya Lvova on Wikimedia Commons ([CC BY-SA 4.0](https://creativecommons.org/licenses/by-sa/4.0/)). These edited versions are under the same licence. The patient ends up on his **left** side.
+
+To add a photo or animation for another step, put the file in `public/img/steps/`, add it to `MEDIA` and `STEP_MEDIA`, and keep it under about 250 KB. Use only photos the centre took itself, with the consent of everyone shown, or files under a free licence. Give credit where the licence requires it.
+
 ## Appearance
 
 There are five modes: Automatic, Day, Midday, Evening and Night. Automatic follows the clock: Day from 05:30, Midday from 11:00, Evening from 16:00 and Night from 19:30. Families choose a mode under **مظهر التطبيق** on the home screen. Staff use the ◐ button or **My account**.
